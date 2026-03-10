@@ -3,62 +3,53 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>THE SIGNAL: NYC OS [WAR ROOM v1.1]</title>
+    <title>THE SIGNAL: NYC OS [WAR ROOM v1.2]</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        :root { --bg: #030303; --accent: #ff0000; --311: #00f2ff; --news: #ff4444; --jobs: #bc61ff; --housing: #00ff88; --panel: rgba(10, 10, 10, 0.98); }
+        :root { --bg: #020202; --accent: #ff3e3e; --311: #00f2ff; --news: #ff4444; --jobs: #bc61ff; --transit: #ff9900; --panel: #0a0a0a; }
         body { margin: 0; background: var(--bg); color: #fff; font-family: 'Inter', sans-serif; height: 100vh; display: flex; overflow: hidden; }
 
-        /* V1.1 FIXED MAP: Deep Obsidian High-Contrast */
-        #map-container { flex-grow: 1; position: relative; background: #000; }
-        #map { height: 100%; width: 100%; background: #000; }
-        .leaflet-tile-container { filter: invert(100%) hue-rotate(180deg) brightness(1.1) contrast(1.3); }
+        /* V1.2 MAP FIX: Obsidian Mode (No more grey) */
+        #map-container { flex-grow: 1; background: #000; position: relative; }
+        #map { height: 100%; width: 100%; }
+        .leaflet-tile-container { filter: invert(100%) hue-rotate(180deg) brightness(1.2) contrast(1.4); }
         .leaflet-container { background: #000 !important; }
 
-        /* UI Structure */
-        .sidebar { width: 380px; background: #050505; border-right: 1px solid #222; overflow-y: auto; padding: 20px; z-index: 10; }
-        .right-panel { width: 420px; background: #050505; border-left: 1px solid #222; overflow-y: auto; padding: 20px; z-index: 10; }
+        .sidebar, .right-panel { width: 380px; background: var(--panel); border-right: 1px solid #222; overflow-y: auto; padding: 20px; z-index: 10; }
+        .right-panel { border-right: none; border-left: 1px solid #222; width: 420px; }
         
-        h1 { font-size: 0.9rem; color: var(--accent); letter-spacing: 4px; margin: 0; text-transform: uppercase; border-bottom: 2px solid #333; padding-bottom: 10px; }
-        h2 { font-size: 0.65rem; color: #555; text-transform: uppercase; letter-spacing: 2px; margin: 25px 0 10px 0; }
-        .status-pulse { font-size: 0.6rem; color: #0f0; font-family: monospace; text-shadow: 0 0 5px #0f0; }
+        h1 { font-size: 0.9rem; color: var(--accent); letter-spacing: 4px; margin: 0; text-transform: uppercase; border-bottom: 2px solid #222; padding-bottom: 10px; }
+        h2 { font-size: 0.6rem; color: #444; text-transform: uppercase; letter-spacing: 2px; margin: 25px 0 10px 0; }
+        .status { font-size: 0.55rem; color: #0f0; font-family: monospace; text-shadow: 0 0 5px #0f0; margin: 10px 0; }
 
-        /* Cards & Pins */
-        .card { background: #0d0d0d; border: 1px solid #1a1a1a; border-radius: 4px; padding: 15px; margin-bottom: 10px; border-left: 3px solid transparent; }
-        .card.gov { border-left-color: var(--311); box-shadow: -5px 0 10px rgba(0, 242, 255, 0.1); }
+        .card { background: #111; border: 1px solid #222; border-radius: 4px; padding: 12px; margin-bottom: 10px; border-left: 3px solid transparent; }
+        .card.gov { border-left-color: var(--311); }
         .card.job { border-left-color: var(--jobs); }
         .card.transit { border-left-color: var(--transit); }
-        
-        .card h3 { font-size: 0.85rem; margin: 0 0 5px 0; font-weight: 700; color: #fff; }
+        .card h3 { font-size: 0.8rem; margin: 0 0 5px 0; color: #eee; }
         .card a { color: inherit; text-decoration: none; }
         .card a:hover { color: var(--accent); }
-        .card .meta { font-size: 0.55rem; color: #444; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; }
+        .card .meta { font-size: 0.5rem; color: #555; text-transform: uppercase; margin-bottom: 4px; }
     </style>
 </head>
 <body>
 
     <div class="sidebar">
         <h1>NYC OS : SIGNAL</h1>
-        <div class="status-pulse" id="status-left">SCANNING GRID...</div>
-        
-        <h2>MTA System Status</h2>
+        <div class="status" id="status-left">MAP ONLINE // SCANNING...</div>
+        <h2>MTA System Pulse</h2>
         <div id="transit-feed"></div>
-
-        <h2>Community Intelligence</h2>
+        <h2>Neighborhood Intel</h2>
         <div id="news-feed"></div>
     </div>
 
-    <div id="map-container">
-        <div id="map"></div>
-    </div>
+    <div id="map-container"><div id="map"></div></div>
 
     <div class="right-panel">
-        <div class="status-pulse" id="status-right">SYSTEM HEALTH: NOMINAL</div>
-
+        <div class="status" id="status-right">SYSTEM HEALTH: ACTIVE</div>
         <h2>Jobs NYC : Active Market</h2>
         <div id="jobs-feed"></div>
-
-        <h2>311 Signals : Real-Time</h2>
+        <h2>311 Signals : 24H Grid</h2>
         <div id="gov-feed"></div>
     </div>
 
@@ -66,6 +57,9 @@
 <script>
     const NYC_CENTER = [40.7128, -74.0060];
     let map, layers = { news: L.layerGroup(), gov: L.layerGroup(), jobs: L.layerGroup(), transit: L.layerGroup() };
+
+    // PROXY ENGINE: Bypasses CORS blocks
+    const PROXY = "https://corsproxy.io/?url=";
 
     function initMap() {
         map = L.map('map', { zoomControl: false, attributionControl: false }).setView(NYC_CENTER, 12);
@@ -80,36 +74,39 @@
         fetchJobs();
     }
 
-    // 1. Live 311 Grid
+    // 1. FIXED 311 API
     async function fetch311() {
         const yesterday = new Date(Date.now() - 86400000).toISOString().split('.')[0];
-        const api = `https://data.cityofnewyork.us/resource/erm2-nwe9.json?$where=created_date > '${yesterday}'&$limit=20&$order=created_date DESC`;
+        // Optimized SODA Query
+        const api = `https://data.cityofnewyork.us/resource/erm2-nwe9.json?$where=created_date > '${yesterday}'&$limit=15&$order=created_date DESC`;
         try {
-            const res = await fetch(api);
+            const res = await fetch(api); // SODA usually allows direct browser fetch, but we monitor
             const data = await res.json();
             data.forEach(sig => {
                 if (sig.latitude) {
-                    L.circleMarker([sig.latitude, sig.longitude], { radius: 7, fillColor: 'var(--311)', color: '#fff', weight: 1, fillOpacity: 0.9 }).addTo(layers.gov)
+                    L.circleMarker([sig.latitude, sig.longitude], { radius: 6, fillColor: 'var(--311)', color: '#fff', weight: 1, fillOpacity: 0.9 }).addTo(layers.gov)
                     .bindPopup(`<b>${sig.complaint_type}</b><br>${sig.incident_address}`);
                 }
                 addCard('gov-feed', sig.complaint_type, `${sig.agency} | ${sig.borough}`, sig.descriptor, null, 'gov');
             });
-        } catch (e) { console.warn("311 Down"); }
+            document.getElementById('status-right').innerText = `GRID ACTIVE: ${data.length} SIGNALS`;
+        } catch (e) { document.getElementById('status-right').innerText = "311 OFFLINE"; }
     }
 
-    // 2. Real-Time Transit Alerts
+    // 2. FIXED MTA PULSE (RSS via Proxy)
     async function fetchMTA() {
-        const api = "https://api.rss2json.com/v1/api.json?rss_url=https://www.mymtaalerts.com/rss/allalerts";
+        const rss = "https://www.mymtaalerts.com/rss/allalerts";
+        const api = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(rss)}`;
         try {
-            const res = await fetch(api);
+            const res = await fetch(PROXY + encodeURIComponent(api)); // Double Proxy layer for RSS
             const data = await res.json();
             data.items.slice(0, 5).forEach(alert => {
-                addCard('transit-feed', alert.title, "MTA ALERT", alert.description.substring(0, 100), alert.link, 'transit');
+                addCard('transit-feed', alert.title, "MTA ALERT", alert.description.substring(0, 80), alert.link, 'transit');
             });
         } catch (e) { }
     }
 
-    // 3. Jobs Market
+    // 3. FIXED JOBS MARKET
     async function fetchJobs() {
         const api = `https://data.cityofnewyork.us/resource/kv7j-sfdc.json?$limit=8&$order=posting_date DESC`;
         try {
@@ -124,7 +121,7 @@
     function addCard(containerId, title, meta, desc, link, type) {
         const div = document.createElement('div');
         div.className = `card ${type}`;
-        div.innerHTML = `<div class="meta">${meta}</div><h3>${link ? `<a href="${link}" target="_blank">${title}</a>` : title}</h3><div style="font-size:0.7rem; color:#666;">${desc}</div>`;
+        div.innerHTML = `<div class="meta">${meta}</div><h3>${link ? `<a href="${link}" target="_blank">${title}</a>` : title}</h3><div style="font-size:0.65rem; color:#555;">${desc}</div>`;
         document.getElementById(containerId).appendChild(div);
     }
 
