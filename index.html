@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>THE SIGNAL: NYC OS [WAR ROOM v1.6]</title>
+    <title>THE SIGNAL: NYC OS [WAR ROOM v1.7]</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         :root { --bg: #000; --accent: #ff3e3e; --311: #00f2ff; --jobs: #bc61ff; --transit: #ff9900; --panel: #0a0a0a; }
-        body { margin: 0; background: var(--bg); color: #fff; font-family: 'Inter', sans-serif; height: 100vh; display: flex; overflow: hidden; }
+        body { margin: 0; background: var(--bg); color: #fff; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; height: 100vh; display: flex; overflow: hidden; }
 
-        /* THE OBSIDIAN OVERRIDE: Forces deep dark mode regardless of browser */
+        /* THE OBSIDIAN OVERRIDE */
         #map-container { flex-grow: 1; background: #000; position: relative; }
         #map { height: 100%; width: 100%; background: #000 !important; }
         .leaflet-tile { filter: invert(100%) hue-rotate(180deg) brightness(0.7) contrast(1.4) !important; }
@@ -22,9 +22,7 @@
         h2 { font-size: 0.55rem; color: #444; text-transform: uppercase; letter-spacing: 2px; margin: 25px 0 10px 0; }
         .status { font-size: 0.5rem; color: #0f0; font-family: monospace; text-shadow: 0 0 5px #0f0; margin: 5px 0 15px 0; }
 
-        /* Tactical Intelligence Cards */
         .card { background: #050505; border: 1px solid #111; border-radius: 2px; padding: 12px; margin-bottom: 8px; border-left: 3px solid transparent; transition: 0.2s; }
-        .card:hover { border-color: #333; background: #080808; }
         .card.gov { border-left-color: var(--311); }
         .card.job { border-left-color: var(--jobs); }
         .card.transit { border-left-color: var(--transit); }
@@ -32,16 +30,16 @@
         .card h3 { font-size: 0.75rem; margin: 0 0 4px 0; color: #eee; line-height: 1.2; font-weight: 700; }
         .card a { color: inherit; text-decoration: none; }
         .card a:hover { color: var(--accent); }
-        .card .meta { font-size: 0.45rem; color: #555; text-transform: uppercase; margin-bottom: 3px; font-weight: 800; letter-spacing: 1px; }
-        .card .desc { font-size: 0.6rem; color: #555; line-height: 1.3; }
+        .card .meta { font-size: 0.45rem; color: #555; text-transform: uppercase; margin-bottom: 3px; font-weight: 800; }
+        .card .desc { font-size: 0.6rem; color: #444; line-height: 1.3; }
     </style>
 </head>
 <body>
 
     <div class="sidebar">
         <h1>NYC OS : SIGNAL</h1>
-        <div class="status" id="status-l">SYNCING GRID...</div>
-        <h2>MTA System Status</h2>
+        <div class="status" id="status-l">GRID SEARCH ACTIVE...</div>
+        <h2>MTA System Pulse</h2>
         <div id="transit-feed"></div>
     </div>
 
@@ -49,9 +47,9 @@
 
     <div class="right-panel">
         <div class="status" id="status-r">HEALTH: NOMINAL</div>
-        <h2>Jobs NYC : Active Postings</h2>
+        <h2>Economy : Jobs</h2>
         <div id="jobs-feed"></div>
-        <h2>311 Signals : Live Feed</h2>
+        <h2>Vitals : 311 Signals</h2>
         <div id="gov-feed"></div>
     </div>
 
@@ -60,7 +58,7 @@
     const NYC_CENTER = [40.73, -73.94]; 
     let map, layers = { gov: L.layerGroup(), jobs: L.layerGroup(), transit: L.layerGroup() };
 
-    // SECURE PROXY: Forces all HTTP traffic through a secure HTTPS tunnel
+    // TACTICAL PROXY
     const PROXY = "https://api.allorigins.win/get?url=";
 
     function initMap() {
@@ -76,50 +74,50 @@
         fetchMTA();
     }
 
-    // 1. TACTICAL 311 SCAN (NYC Open Data is HTTPS-native)
     async function fetch311() {
         const yesterday = new Date(Date.now() - 86400000).toISOString().split('.')[0];
         const api = `https://data.cityofnewyork.us/resource/erm2-nwe9.json?$where=created_date > '${yesterday}'&$limit=30&$order=created_date DESC`;
         try {
             const res = await fetch(api);
             const data = await res.json();
-            data.forEach(sig => {
-                if (sig.latitude) {
-                    L.circleMarker([sig.latitude, sig.longitude], { radius: 6, fillColor: 'var(--311)', color: '#fff', weight: 1, fillOpacity: 0.9 }).addTo(layers.gov)
-                    .bindPopup(`<b>${sig.complaint_type}</b><br>${sig.incident_address}`);
-                }
-                addCard('gov-feed', sig.complaint_type, `${sig.agency} | ${sig.borough}`, sig.descriptor, null, 'gov');
-            });
-            document.getElementById('status-r').innerText = `ACTIVE SIGNALS: ${data.length}`;
-        } catch (e) { document.getElementById('status-r').innerText = "SIGNAL BLOCKED"; }
+            if(data && data.length > 0) {
+                data.forEach(sig => {
+                    if (sig.latitude) {
+                        L.circleMarker([sig.latitude, sig.longitude], { radius: 6, fillColor: 'var(--311)', color: '#fff', weight: 1, fillOpacity: 0.9 }).addTo(layers.gov)
+                        .bindPopup(`<b>${sig.complaint_type}</b><br>${sig.incident_address}`);
+                    }
+                    addCard('gov-feed', sig.complaint_type, `${sig.agency} | ${sig.borough}`, sig.descriptor, null, 'gov');
+                });
+                document.getElementById('status-r').innerText = `SIGNALS DETECTED: ${data.length}`;
+            }
+        } catch (e) { document.getElementById('status-r').innerText = "311 SIGNAL BLOCKED"; }
     }
 
-    // 2. JOBS SCAN (HTTPS-native)
     async function fetchJobs() {
         const api = `https://data.cityofnewyork.us/resource/kv7j-sfdc.json?$limit=8&$order=posting_date DESC`;
         try {
             const res = await fetch(api);
             const data = await res.json();
-            data.forEach(job => {
-                addCard('jobs-feed', job.business_title, job.agency, job.job_category, "https://www.nyc.gov/jobs", 'job');
-            });
-        } catch (e) { }
+            if(data) {
+                data.forEach(job => addCard('jobs-feed', job.business_title, job.agency, job.job_category, "https://www.nyc.gov/jobs", 'job'));
+            }
+        } catch (e) { console.error(e); }
     }
 
-    // 3. SECURE MTA SCAN (Bypassing Mixed Content blocks via Proxy)
     async function fetchMTA() {
         const rss = "https://www.mymtaalerts.com/rss/allalerts";
         const url = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(rss)}`;
         try {
             const res = await fetch(PROXY + encodeURIComponent(url));
             const json = await res.json();
-            // Securely parse the proxy-wrapped content
             const data = JSON.parse(json.contents);
-            data.items.slice(0, 5).forEach(alert => {
-                addCard('transit-feed', alert.title, "MTA ALERT", alert.description.substring(0, 70), alert.link, 'transit');
-            });
-            document.getElementById('status-l').innerText = "GRID ACTIVE";
-        } catch (e) { document.getElementById('status-l').innerText = "TRANSIT OFFLINE"; }
+            if(data && data.items) {
+                data.items.slice(0, 5).forEach(alert => {
+                    addCard('transit-feed', alert.title, "MTA // ALERT", alert.description.substring(0, 70), alert.link, 'transit');
+                });
+                document.getElementById('status-l').innerText = "GRID PULSE: ACTIVE";
+            }
+        } catch (e) { document.getElementById('status-l').innerText = "TRANSIT DATA ERROR"; }
     }
 
     function addCard(id, title, meta, desc, link, type) {
