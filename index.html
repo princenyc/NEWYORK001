@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>THE SIGNAL: NYC OS [WAR ROOM v4.1]</title>
+    <title>THE SIGNAL: NYC OS [WAR ROOM v4.2]</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         :root { --bg: #000; --accent: #ff3e3e; --311: #00f2ff; --jobs: #bc61ff; --cams: #ffea00; --panel: #0a0a0a; }
@@ -11,21 +11,30 @@
         #map-container { flex-grow: 1; background: #000; position: relative; }
         #map { height: 100%; width: 100%; background: #000 !important; }
         .leaflet-tile { filter: invert(100%) hue-rotate(180deg) brightness(0.7) contrast(1.4) !important; }
-        .leaflet-container { background: #000 !important; }
         
         /* Tactical Camera Popup */
         .cam-feed { width: 260px; height: 195px; background: #111; border: 1px solid var(--cams); overflow: hidden; position: relative; }
         .cam-feed img { width: 100%; height: 100%; object-fit: cover; }
         .cam-label { position: absolute; bottom: 5px; left: 5px; font-size: 10px; background: rgba(0,0,0,0.8); padding: 2px 5px; color: var(--cams); font-family: monospace; }
         
-        .leaflet-popup-content-wrapper { background: #111; color: #fff; border: 1px solid #333; border-radius: 4px; padding: 0; }
-        .leaflet-popup-content { margin: 10px; }
-
-        .sidebar, .right-panel { width: 340px; background: var(--panel); border-right: 1px solid #1a1a1a; overflow-y: auto; padding: 20px; z-index: 10; }
+        .sidebar, .right-panel { width: 340px; background: var(--panel); border-right: 1px solid #1a1a1a; overflow-y: auto; padding: 20px; z-index: 10; transition: width 0.3s; }
         .right-panel { border-right: none; border-left: 1px solid #1a1a1a; width: 380px; }
-        h1 { font-size: 0.85rem; color: var(--accent); letter-spacing: 4px; margin: 0; text-transform: uppercase; border-bottom: 2px solid #1a1a1a; padding-bottom: 10px; font-weight: 900; }
-        .status { font-size: 0.5rem; color: #0f0; font-family: monospace; text-shadow: 0 0 5px #0f0; margin: 10px 0; }
         
+        /* Interactive Headers */
+        .section-header { 
+            font-size: 0.85rem; color: var(--accent); letter-spacing: 4px; margin: 20px 0 10px 0; 
+            text-transform: uppercase; border-bottom: 2px solid #1a1a1a; padding-bottom: 10px; 
+            font-weight: 900; cursor: pointer; display: flex; justify-content: space-between; 
+        }
+        .section-header:hover { color: #fff; border-bottom-color: var(--accent); }
+        .section-header::after { content: ' [+]'; font-size: 0.6rem; color: #444; }
+        .active .section-header::after { content: ' [-]'; color: var(--accent); }
+
+        /* Hidden Feed State */
+        .feed-content { display: none; margin-bottom: 20px; }
+        .active .feed-content { display: block; }
+
+        .status { font-size: 0.5rem; color: #0f0; font-family: monospace; text-shadow: 0 0 5px #0f0; margin: 10px 0; }
         .card { background: #050505; border: 1px solid #111; border-radius: 2px; padding: 12px; margin-bottom: 8px; border-left: 3px solid transparent; }
         .card.gov { border-left-color: var(--311); }
         .card.job { border-left-color: var(--jobs); }
@@ -34,15 +43,37 @@
         .card .meta { font-size: 0.45rem; color: #555; text-transform: uppercase; margin-bottom: 3px; font-weight: 800; }
         .card .desc { font-size: 0.6rem; color: #777; line-height: 1.3; }
         
-        .btn { display: inline-block; margin-top: 8px; padding: 4px 8px; font-size: 0.55rem; color: var(--jobs); border: 1px solid var(--jobs); text-decoration: none; text-transform: uppercase; font-weight: 900; cursor: pointer; }
+        .btn { display: inline-block; margin-top: 8px; padding: 4px 8px; font-size: 0.55rem; color: var(--jobs); border: 1px solid var(--jobs); text-decoration: none; text-transform: uppercase; font-weight: 900; }
         #debug { position: fixed; bottom: 10px; left: 10px; font-size: 10px; color: #555; z-index: 2000; background: rgba(0,0,0,0.8); padding: 4px 8px; }
     </style>
 </head>
 <body>
-    <div class="sidebar"><h1>NYC OS : SIGNAL</h1><div class="status" id="status-l">EYES ON GRID</div><h2>Surveillance Nodes</h2><div id="cam-list"></div></div>
+    <div class="sidebar">
+        <h1 style="font-size: 1rem; color: var(--accent); letter-spacing: 5px; margin-bottom: 20px;">NYC OS : SIGNAL</h1>
+        <div class="status" id="status-l">EYES ON GRID</div>
+        
+        <div class="section-container" onclick="this.classList.toggle('active')">
+            <div class="section-header">Surveillance</div>
+            <div id="cam-list" class="feed-content"></div>
+        </div>
+    </div>
+
     <div id="map-container"><div id="map"></div></div>
-    <div class="right-panel"><div class="status" id="status-r">HEALTH: NOMINAL</div><h2>Jobs Market</h2><div id="jobs-feed"></div><h2>311 Vitals</h2><div id="gov-feed"></div></div>
-    <div id="debug">v4.1 LOG: STANDBY</div>
+
+    <div class="right-panel">
+        <div class="status" id="status-r">HEALTH: NOMINAL</div>
+        
+        <div class="section-container" onclick="this.classList.toggle('active')">
+            <div class="section-header">Jobs Market</div>
+            <div id="jobs-feed" class="feed-content"></div>
+        </div>
+
+        <div class="section-container active" onclick="this.classList.toggle('active')">
+            <div class="section-header">311 Vitals</div>
+            <div id="gov-feed" class="feed-content"></div>
+        </div>
+    </div>
+    <div id="debug">v4.2 LOG: STANDBY</div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
@@ -50,7 +81,7 @@
     let map, layers = { gov: L.layerGroup(), jobs: L.layerGroup(), cams: L.layerGroup() };
     const PROXY = "https://api.allorigins.win/get?url=";
 
-    function log(msg) { document.getElementById('debug').innerText = "v4.1: " + msg; }
+    function log(msg) { document.getElementById('debug').innerText = "v4.2: " + msg; }
 
     const CAMERA_NODES = [
         { name: "Times Sq - 42nd St", lat: 40.7550, lon: -73.9868, id: "461" },
@@ -70,13 +101,12 @@
 
     function deployCams() {
         CAMERA_NODES.forEach(cam => {
-            // Tunneling image through AllOrigins to solve HTTPS/Mixed Content issues
-            const rawUrl = `http://207.251.86.238/cctv${cam.id}.jpg?t=${Date.now()}`;
-            const proxiedUrl = `https://images.weserv.nl/?url=${encodeURIComponent(rawUrl)}`;
+            // Updated Proxy strategy for images: using Cloudinary-style fetch for SSL conversion
+            const proxiedUrl = `https://images.weserv.nl/?url=http://207.251.86.238/cctv${cam.id}.jpg&w=300&t=fit&ext=jpg&cache=0`;
             
             const popup = `
                 <div class="cam-feed">
-                    <img src="${proxiedUrl}" onerror="this.src='https://via.placeholder.com/260x195?text=SIGNAL+LOST'">
+                    <img src="${proxiedUrl}" onerror="this.src='https://via.placeholder.com/260x195?text=ENCRYPTED+SIGNAL'">
                     <div class="cam-label">LIVE // NODE_${cam.id}</div>
                 </div>`;
             
@@ -84,7 +114,7 @@
             .addTo(layers.cams)
             .bindPopup(popup);
 
-            addCard('cam-list', cam.name, "ACTIVE", `Interpreting Node ${cam.id}`, 'cams');
+            addCard('cam-list', cam.name, "NODE ACTIVE", `ID: ${cam.id}`, 'cams');
         });
     }
 
@@ -112,7 +142,6 @@
             const res = await fetch(PROXY + encodeURIComponent(target));
             const json = await res.json();
             const data = JSON.parse(json.contents);
-            document.getElementById('jobs-feed').innerHTML = ''; // Clear fallback
             data.forEach(job => {
                 const applyLink = `https://cityjobs.nyc.gov/jobs/${job.job_id || ''}`;
                 addCard('jobs-feed', job.business_title, job.agency, `${job.job_category || 'ADMIN'} | <a href="${applyLink}" target="_blank" class="btn">View Specs</a>`, 'job');
