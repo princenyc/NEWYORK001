@@ -3,63 +3,52 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>THE SIGNAL: NYC OS [WAR ROOM v3.2]</title>
+    <title>THE SIGNAL: NYC OS [WAR ROOM v3.4]</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         :root { --bg: #000; --accent: #ff3e3e; --311: #00f2ff; --jobs: #bc61ff; --housing: #ff00ff; --panel: #0a0a0a; }
         body { margin: 0; background: var(--bg); color: #fff; font-family: 'Segoe UI', sans-serif; height: 100vh; display: flex; overflow: hidden; }
-        
         #map-container { flex-grow: 1; background: #000; position: relative; }
         #map { height: 100%; width: 100%; background: #000 !important; }
         .leaflet-tile { filter: invert(100%) hue-rotate(180deg) brightness(0.7) contrast(1.4) !important; }
         .leaflet-container { background: #000 !important; }
-
+        
+        /* Popup Styling: Obsidian Theme */
+        .leaflet-popup-content-wrapper { background: #111; color: #fff; border: 1px solid var(--311); border-radius: 4px; font-size: 0.7rem; }
+        .leaflet-popup-tip { background: #111; }
+        .popup-header { color: var(--311); font-weight: 900; text-transform: uppercase; margin-bottom: 5px; border-bottom: 1px solid #333; padding-bottom: 3px; }
+        
         .sidebar, .right-panel { width: 340px; background: var(--panel); border-right: 1px solid #1a1a1a; overflow-y: auto; padding: 20px; z-index: 10; }
         .right-panel { border-right: none; border-left: 1px solid #1a1a1a; width: 380px; }
-        
         h1 { font-size: 0.85rem; color: var(--accent); letter-spacing: 4px; margin: 0; text-transform: uppercase; border-bottom: 2px solid #1a1a1a; padding-bottom: 10px; font-weight: 900; }
-        h2 { font-size: 0.55rem; color: #444; text-transform: uppercase; letter-spacing: 2px; margin: 25px 0 10px 0; }
-        .status { font-size: 0.5rem; color: #0f0; font-family: monospace; text-shadow: 0 0 5px #0f0; margin: 5px 0 10px 0; }
-
+        .status { font-size: 0.5rem; color: #0f0; font-family: monospace; text-shadow: 0 0 5px #0f0; margin: 10px 0; }
         .card { background: #050505; border: 1px solid #111; border-radius: 2px; padding: 12px; margin-bottom: 8px; border-left: 3px solid transparent; }
         .card.gov { border-left-color: var(--311); }
         .card.job { border-left-color: var(--jobs); }
         .card.housing { border-left-color: var(--housing); }
-        
         .card h3 { font-size: 0.75rem; margin: 0 0 4px 0; color: #eee; line-height: 1.2; font-weight: 700; }
         .card .meta { font-size: 0.45rem; color: #555; text-transform: uppercase; margin-bottom: 3px; font-weight: 800; }
         .card .desc { font-size: 0.6rem; color: #777; line-height: 1.3; margin-top: 4px; border-top: 1px solid #111; padding-top: 4px; }
-        #debug { position: fixed; bottom: 10px; left: 10px; font-size: 10px; color: #555; z-index: 2000; pointer-events: none; background: rgba(0,0,0,0.8); padding: 4px 8px; border: 1px solid #333; }
+        #debug { position: fixed; bottom: 10px; left: 10px; font-size: 10px; color: #555; z-index: 2000; background: rgba(0,0,0,0.8); padding: 4px 8px; border: 1px solid #333; }
     </style>
 </head>
 <body>
-
-    <div class="sidebar">
-        <h1>NYC OS : SIGNAL</h1>
-        <div class="status" id="status-l">GRID READY</div>
-        <h2>Housing Intelligence</h2>
-        <div id="housing-feed"></div>
-    </div>
-
+    <div class="sidebar"><h1>NYC OS : SIGNAL</h1><div class="status" id="status-l">GRID READY</div><h2>Housing Intel</h2><div id="housing-feed"></div></div>
     <div id="map-container"><div id="map"></div></div>
-
-    <div class="right-panel">
-        <div class="status" id="status-r">SYSTEM NOMINAL</div>
-        <h2>Jobs Market</h2>
-        <div id="jobs-feed"></div>
-        <h2>311 Vitals</h2>
-        <div id="gov-feed"></div>
-    </div>
-
-    <div id="debug">v3.2 LOG: STANDBY</div>
+    <div class="right-panel"><div class="status" id="status-r">HEALTH: NOMINAL</div><h2>Jobs Market</h2><div id="jobs-feed"></div><h2>311 Vitals</h2><div id="gov-feed"></div></div>
+    <div id="debug">v3.4 LOG: STANDBY</div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
     const NYC_CENTER = [40.7128, -74.0060];
     let map, layers = { gov: L.layerGroup(), jobs: L.layerGroup(), housing: L.layerGroup() };
-    const PROXY = "https://api.allorigins.win/get?url=";
+    const PROXIES = [
+        "https://api.allorigins.win/get?url=",
+        "https://corsproxy.io/?",
+        "https://thingproxy.freeboard.io/fetch/"
+    ];
 
-    function log(msg) { document.getElementById('debug').innerText = "v3.2: " + msg; }
+    function log(msg) { document.getElementById('debug').innerText = "v3.4: " + msg; }
 
     function initMap() {
         map = L.map('map', { zoomControl: false, attributionControl: false }).setView(NYC_CENTER, 12);
@@ -68,52 +57,66 @@
         sync();
     }
 
-    async function sync() { fetch311(); fetchJobs(); fetchHousing(); }
-
-    async function fetchHousing() {
-        const target = "https://data.cityofnewyork.us/resource/9ck6-pbiq.json?$limit=10&$order=registration_date DESC";
-        try {
-            const res = await fetch(PROXY + encodeURIComponent(target));
-            const json = await res.json();
-            const data = JSON.parse(json.contents);
-            log(`Housing: ${data.length} Signals`);
-            data.forEach(h => {
-                if (h.latitude) {
-                    L.circleMarker([h.latitude, h.longitude], { radius: 7, fillColor: 'var(--housing)', color: '#fff', weight: 1, fillOpacity: 1 }).addTo(layers.housing)
-                    .bindPopup(`<b>Housing</b>: ${h.project_name}`);
-                }
-                addCard('housing-feed', h.project_name, h.borough, h.address, 'housing');
-            });
-        } catch (e) { log("Housing format error"); }
-    }
+    async function sync() { fetch311(); fetchJobs(0); fetchHousing(0); }
 
     async function fetch311() {
         const dateStr = new Date(Date.now() - 86400000).toISOString().split('T')[0];
-        const api = `https://data.cityofnewyork.us/resource/erm2-nwe9.json?$where=created_date > '${dateStr}'&$limit=35&$order=created_date DESC`;
+        const api = `https://data.cityofnewyork.us/resource/erm2-nwe9.json?$where=created_date > '${dateStr}'&$limit=50&$order=created_date DESC`;
         try {
             const res = await fetch(api);
             const data = await res.json();
             data.forEach(sig => {
                 if (sig.latitude) {
-                    L.circleMarker([sig.latitude, sig.longitude], { radius: 6, fillColor: 'var(--311)', color: '#fff', weight: 1, fillOpacity: 0.9 }).addTo(layers.gov);
+                    const popupContent = `
+                        <div class="popup-header">${sig.complaint_type}</div>
+                        <b>Agency:</b> ${sig.agency}<br>
+                        <b>Status:</b> ${sig.status}<br>
+                        <b>Intel:</b> ${sig.descriptor || 'No data'}<br>
+                        <b>Location:</b> ${sig.incident_address || 'N/A'}
+                    `;
+                    L.circleMarker([sig.latitude, sig.longitude], { radius: 6, fillColor: 'var(--311)', color: '#fff', weight: 1, fillOpacity: 0.9 })
+                    .addTo(layers.gov)
+                    .bindPopup(popupContent);
                 }
-                // RESTORED INTEL: Added 'descriptor' to card
-                const intel = `${sig.descriptor || "No details"} | ${sig.incident_address || "Location Unlisted"}`;
-                addCard('gov-feed', sig.complaint_type, sig.agency, intel, 'gov');
+                addCard('gov-feed', sig.complaint_type, sig.agency, `${sig.descriptor || 'General'} | ${sig.incident_address || 'N/A'}`, 'gov');
             });
             document.getElementById('status-r').innerText = `SIGNALS: ${data.length}`;
         } catch (e) { log("311 error"); }
     }
 
-    async function fetchJobs() {
-        const target = "https://data.cityofnewyork.us/resource/kv7j-sfdc.json?$limit=10&$order=posting_date DESC";
+    async function fetchHousing(pIdx) {
+        const target = "https://data.cityofnewyork.us/resource/9ck6-pbiq.json?$limit=8";
         try {
-            const res = await fetch(PROXY + encodeURIComponent(target));
+            const res = await fetch(PROXIES[pIdx] + encodeURIComponent(target));
             const json = await res.json();
-            const data = JSON.parse(json.contents);
-            log(`Jobs: ${data.length} Postings`);
+            const data = (pIdx === 0) ? JSON.parse(json.contents) : json;
+            data.forEach(h => {
+                if (h.latitude) {
+                    L.circleMarker([h.latitude, h.longitude], { radius: 8, fillColor: 'var(--housing)', color: '#fff', weight: 2, fillOpacity: 1 })
+                    .addTo(layers.housing)
+                    .bindPopup(`<div class="popup-header" style="color:var(--housing)">HOUSING LOTTERY</div><b>Project:</b> ${h.project_name}<br><b>Address:</b> ${h.address}`);
+                }
+                addCard('housing-feed', h.project_name, h.borough, h.address, 'housing');
+            });
+            log("Housing Signals Locked");
+        } catch (e) { 
+            if (pIdx < PROXIES.length - 1) fetchHousing(pIdx + 1);
+            else log("Housing Blocked");
+        }
+    }
+
+    async function fetchJobs(pIdx) {
+        const target = "https://data.cityofnewyork.us/resource/kv7j-sfdc.json?$limit=10";
+        try {
+            const res = await fetch(PROXIES[pIdx] + encodeURIComponent(target));
+            const json = await res.json();
+            const data = (pIdx === 0) ? JSON.parse(json.contents) : json;
             data.forEach(job => addCard('jobs-feed', job.business_title, job.agency, job.job_category, 'job'));
-        } catch (e) { log("Jobs block persistent"); }
+            log("Job Signals Locked");
+        } catch (e) {
+            if (pIdx < PROXIES.length - 1) fetchJobs(pIdx + 1);
+            else log("Jobs Blocked");
+        }
     }
 
     function addCard(id, title, meta, desc, type) {
