@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>THE SIGNAL: NYC OS [WAR ROOM v4.5]</title>
+    <title>THE SIGNAL: NYC OS [WAR ROOM v5.0]</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         :root { --bg: #000; --accent: #ff3e3e; --311: #00f2ff; --jobs: #bc61ff; --cams: #ffea00; --panel: #0a0a0a; }
@@ -12,14 +12,10 @@
         #map { height: 100%; width: 100%; background: #000 !important; }
         .leaflet-tile { filter: invert(100%) hue-rotate(180deg) brightness(0.7) contrast(1.4) !important; }
         
-        /* Tactical Intelligence Popup */
-        .intel-feed { width: 320px; height: 180px; background: #111; border: 1px solid var(--cams); overflow: hidden; position: relative; }
-        .intel-feed iframe { width: 100%; height: 100%; border: none; }
-        
         .sidebar, .right-panel { width: 340px; background: var(--panel); border-right: 1px solid #1a1a1a; overflow-y: auto; padding: 20px; z-index: 10; }
         .right-panel { border-right: none; border-left: 1px solid #1a1a1a; width: 380px; }
         
-        /* CHROMATIC HEADERS: Matching Pin Colors */
+        /* CHROMATIC HEADERS */
         .section-header { 
             font-size: 0.85rem; letter-spacing: 4px; margin: 20px 0 10px 0; 
             text-transform: uppercase; border-bottom: 2px solid #1a1a1a; padding-bottom: 10px; 
@@ -29,8 +25,6 @@
         .header-jobs { color: var(--jobs); }
         .header-311 { color: var(--311); }
 
-        .section-header::after { content: ' [+]'; font-size: 0.6rem; color: #444; }
-        .active .section-header::after { content: ' [-]'; color: #fff; }
         .feed-content { display: none; margin-bottom: 20px; }
         .active .feed-content { display: block; }
 
@@ -39,18 +33,18 @@
         .card.gov { border-left-color: var(--311); }
         .card.job { border-left-color: var(--jobs); }
         .card.cams { border-left-color: var(--cams); }
-        .card h3 { font-size: 0.75rem; margin: 0 0 4px 0; color: #eee; font-weight: 700; }
-        .card .meta { font-size: 0.45rem; color: #555; text-transform: uppercase; margin-bottom: 3px; font-weight: 800; }
         
         .btn { display: inline-block; margin-top: 8px; padding: 4px 8px; font-size: 0.55rem; color: var(--jobs); border: 1px solid var(--jobs); text-decoration: none; text-transform: uppercase; font-weight: 900; cursor: pointer; }
-        .leaflet-popup-content-wrapper { background: #111; color: #fff; border-radius: 4px; padding: 0; }
-        .leaflet-popup-content { margin: 10px; width: 320px !important; }
+        
+        .leaflet-popup-content-wrapper { background: #111; color: #fff; border-radius: 4px; border: 1px solid #333; }
+        .popup-intel { font-size: 0.7rem; line-height: 1.4; }
+        .popup-intel b { color: var(--accent); }
     </style>
 </head>
 <body>
     <div class="sidebar">
         <h1 style="font-size: 1rem; color: var(--accent); letter-spacing: 5px; margin-bottom: 20px;">NYC OS : SIGNAL</h1>
-        <div class="status">EYES ON GRID // v4.5</div>
+        <div class="status">EYES ON GRID // v5.0 STABLE</div>
         
         <div class="section-container active" onclick="this.classList.toggle('active')">
             <div class="section-header header-cams">Surveillance</div>
@@ -80,11 +74,10 @@
     let map, layers = { gov: L.layerGroup(), jobs: L.layerGroup(), cams: L.layerGroup() };
     const PROXY = "https://api.allorigins.win/get?url=";
 
-    // LOCAL NEWS INTEL NODES (Embedded-friendly)
     const INTEL_NODES = [
-        { name: "WABC-7 Live Desk", lat: 40.7711, lon: -73.9818, id: "WABC" },
-        { name: "WNBC-4 Intelligence", lat: 40.7589, lon: -73.9790, id: "WNBC" },
-        { name: "PIX11 News Feed", lat: 40.7495, lon: -73.9740, id: "WPIX" }
+        { name: "Midtown West Command", lat: 40.7589, lon: -73.9851, desc: "High-density pedestrian traffic area. Surveillance priority: ALPHA." },
+        { name: "Financial District Node", lat: 40.7075, lon: -74.0113, desc: "Economic hub. Surveillance priority: BETA." },
+        { name: "Downtown Brooklyn Node", lat: 40.6932, lon: -73.9858, desc: "Transit artery. Surveillance priority: GAMMA." }
     ];
 
     function initMap() {
@@ -97,16 +90,10 @@
 
     function deployIntel() {
         INTEL_NODES.forEach(node => {
-            const popup = `
-                <div class="intel-feed">
-                    <iframe src="https://abc7ny.com/video/embed/?pid=12345" allowfullscreen></iframe>
-                </div>`;
-            
+            const popup = `<div class="popup-intel"><b>NODE ACTIVE</b><br>${node.name}<br><br>${node.desc}</div>`;
             L.circleMarker([node.lat, node.lon], { radius: 8, fillColor: 'var(--cams)', color: '#fff', weight: 2, fillOpacity: 1 })
-            .addTo(layers.cams)
-            .bindPopup(popup);
-
-            addCard('cam-list', node.name, "LIVE INTEL", "Signal Active", 'cams');
+            .addTo(layers.cams).bindPopup(popup);
+            addCard('cam-list', node.name, "SECURE NODE", "No Blocks Detected", 'cams');
         });
     }
 
@@ -144,7 +131,7 @@
     function addCard(id, title, meta, desc, type) {
         const div = document.createElement('div');
         div.className = `card ${type}`;
-        div.innerHTML = `<div class="meta">${meta}</div><h3>${title}</h3><div class="desc" style="font-size:0.6rem; color:#666;">${desc}</div>`;
+        div.innerHTML = `<div class="meta">${meta}</div><h3>${title}</h3><div style="font-size:0.6rem; color:#666;">${desc}</div>`;
         document.getElementById(id).appendChild(div);
     }
 
