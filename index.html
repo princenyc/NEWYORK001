@@ -3,13 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>THE SIGNAL: NYC OS [WAR ROOM v3.1]</title>
+    <title>THE SIGNAL: NYC OS [WAR ROOM v3.2]</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         :root { --bg: #000; --accent: #ff3e3e; --311: #00f2ff; --jobs: #bc61ff; --housing: #ff00ff; --panel: #0a0a0a; }
         body { margin: 0; background: var(--bg); color: #fff; font-family: 'Segoe UI', sans-serif; height: 100vh; display: flex; overflow: hidden; }
         
-        /* OBSIDIAN MAP OVERRIDE */
         #map-container { flex-grow: 1; background: #000; position: relative; }
         #map { height: 100%; width: 100%; background: #000 !important; }
         .leaflet-tile { filter: invert(100%) hue-rotate(180deg) brightness(0.7) contrast(1.4) !important; }
@@ -29,7 +28,7 @@
         
         .card h3 { font-size: 0.75rem; margin: 0 0 4px 0; color: #eee; line-height: 1.2; font-weight: 700; }
         .card .meta { font-size: 0.45rem; color: #555; text-transform: uppercase; margin-bottom: 3px; font-weight: 800; }
-        .card .desc { font-size: 0.6rem; color: #444; line-height: 1.3; }
+        .card .desc { font-size: 0.6rem; color: #777; line-height: 1.3; margin-top: 4px; border-top: 1px solid #111; padding-top: 4px; }
         #debug { position: fixed; bottom: 10px; left: 10px; font-size: 10px; color: #555; z-index: 2000; pointer-events: none; background: rgba(0,0,0,0.8); padding: 4px 8px; border: 1px solid #333; }
     </style>
 </head>
@@ -37,8 +36,8 @@
 
     <div class="sidebar">
         <h1>NYC OS : SIGNAL</h1>
-        <div class="status" id="status-l">GRID SEARCH ACTIVE...</div>
-        <h2>Housing Connect</h2>
+        <div class="status" id="status-l">GRID READY</div>
+        <h2>Housing Intelligence</h2>
         <div id="housing-feed"></div>
     </div>
 
@@ -46,13 +45,13 @@
 
     <div class="right-panel">
         <div class="status" id="status-r">SYSTEM NOMINAL</div>
-        <h2>NYC Jobs : Market</h2>
+        <h2>Jobs Market</h2>
         <div id="jobs-feed"></div>
-        <h2>311 Signals : Vitals</h2>
+        <h2>311 Vitals</h2>
         <div id="gov-feed"></div>
     </div>
 
-    <div id="debug">v3.1 LOG: STANDBY</div>
+    <div id="debug">v3.2 LOG: STANDBY</div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
@@ -60,7 +59,7 @@
     let map, layers = { gov: L.layerGroup(), jobs: L.layerGroup(), housing: L.layerGroup() };
     const PROXY = "https://api.allorigins.win/get?url=";
 
-    function log(msg) { document.getElementById('debug').innerText = "v3.1: " + msg; }
+    function log(msg) { document.getElementById('debug').innerText = "v3.2: " + msg; }
 
     function initMap() {
         map = L.map('map', { zoomControl: false, attributionControl: false }).setView(NYC_CENTER, 12);
@@ -71,51 +70,50 @@
 
     async function sync() { fetch311(); fetchJobs(); fetchHousing(); }
 
-    // 1. HOUSING SIGNAL (Coords Included)
     async function fetchHousing() {
-        const api = "https://data.cityofnewyork.us/resource/9ck6-pbiq.json?$limit=10&$order=registration_date DESC";
+        const target = "https://data.cityofnewyork.us/resource/9ck6-pbiq.json?$limit=10&$order=registration_date DESC";
         try {
-            const res = await fetch(api);
-            const data = await res.json();
+            const res = await fetch(PROXY + encodeURIComponent(target));
+            const json = await res.json();
+            const data = JSON.parse(json.contents);
             log(`Housing: ${data.length} Signals`);
             data.forEach(h => {
                 if (h.latitude) {
-                    L.circleMarker([h.latitude, h.longitude], { radius: 8, fillColor: 'var(--housing)', color: '#fff', weight: 2, fillOpacity: 1 }).addTo(layers.housing)
-                    .bindPopup(`<b>${h.project_name}</b><br>${h.address}`);
+                    L.circleMarker([h.latitude, h.longitude], { radius: 7, fillColor: 'var(--housing)', color: '#fff', weight: 1, fillOpacity: 1 }).addTo(layers.housing)
+                    .bindPopup(`<b>Housing</b>: ${h.project_name}`);
                 }
-                addCard('housing-feed', h.project_name, "LOTTERY ACTIVE", h.address, 'housing');
+                addCard('housing-feed', h.project_name, h.borough, h.address, 'housing');
             });
-        } catch (e) { log("Housing block"); }
+        } catch (e) { log("Housing format error"); }
     }
 
-    // 2. 311 SIGNAL
     async function fetch311() {
         const dateStr = new Date(Date.now() - 86400000).toISOString().split('T')[0];
-        const api = `https://data.cityofnewyork.us/resource/erm2-nwe9.json?$where=created_date > '${dateStr}'&$limit=40&$order=created_date DESC`;
+        const api = `https://data.cityofnewyork.us/resource/erm2-nwe9.json?$where=created_date > '${dateStr}'&$limit=35&$order=created_date DESC`;
         try {
             const res = await fetch(api);
             const data = await res.json();
-            log(`311: ${data.length} Signals`);
             data.forEach(sig => {
                 if (sig.latitude) {
                     L.circleMarker([sig.latitude, sig.longitude], { radius: 6, fillColor: 'var(--311)', color: '#fff', weight: 1, fillOpacity: 0.9 }).addTo(layers.gov);
                 }
-                addCard('gov-feed', sig.complaint_type, sig.agency, sig.incident_address || "Location Unlisted", 'gov');
+                // RESTORED INTEL: Added 'descriptor' to card
+                const intel = `${sig.descriptor || "No details"} | ${sig.incident_address || "Location Unlisted"}`;
+                addCard('gov-feed', sig.complaint_type, sig.agency, intel, 'gov');
             });
             document.getElementById('status-r').innerText = `SIGNALS: ${data.length}`;
         } catch (e) { log("311 error"); }
     }
 
-    // 3. JOBS SIGNAL (No Coords, Sidebar only)
     async function fetchJobs() {
         const target = "https://data.cityofnewyork.us/resource/kv7j-sfdc.json?$limit=10&$order=posting_date DESC";
         try {
             const res = await fetch(PROXY + encodeURIComponent(target));
             const json = await res.json();
             const data = JSON.parse(json.contents);
-            log(`Jobs: ${data.length} Signals`);
+            log(`Jobs: ${data.length} Postings`);
             data.forEach(job => addCard('jobs-feed', job.business_title, job.agency, job.job_category, 'job'));
-        } catch (e) { log("Jobs block"); }
+        } catch (e) { log("Jobs block persistent"); }
     }
 
     function addCard(id, title, meta, desc, type) {
