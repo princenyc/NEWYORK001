@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>THE SIGNAL: NYC OS [WAR ROOM v5.4]</title>
+    <title>THE SIGNAL: NYC OS [v5.5 STABLE]</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         :root { --bg: #000; --accent: #ff3e3e; --311: #00f2ff; --jobs: #bc61ff; --cams: #ffea00; --gov: #ff9900; --panel: #0a0a0a; }
@@ -12,24 +12,19 @@
         #map { height: 100%; width: 100%; background: #000 !important; }
         .leaflet-tile { filter: invert(100%) hue-rotate(180deg) brightness(0.7) contrast(1.4) !important; }
         
-        /* Side Panels */
         .sidebar, .right-panel { width: 340px; background: var(--panel); border-right: 1px solid #1a1a1a; overflow-y: auto; padding: 20px; z-index: 10; }
         .right-panel { border-right: none; border-left: 1px solid #1a1a1a; width: 380px; }
         
         .section-header { font-size: 0.85rem; letter-spacing: 4px; margin: 20px 0 10px 0; text-transform: uppercase; border-bottom: 2px solid #1a1a1a; padding-bottom: 10px; font-weight: 900; cursor: pointer; display: flex; justify-content: space-between; }
-        .header-cams { color: var(--cams); }
-        .header-jobs { color: var(--jobs); }
-        .header-311 { color: var(--311); }
-        .header-gov { color: var(--gov); }
+        .header-cams { color: var(--cams); } .header-jobs { color: var(--jobs); } .header-311 { color: var(--311); } .header-gov { color: var(--gov); }
 
         .feed-content { display: none; margin-bottom: 20px; }
         .active .feed-content { display: block; }
         .status { font-size: 0.5rem; color: #0f0; font-family: monospace; text-shadow: 0 0 5px #0f0; margin: 10px 0; }
         
-        .card { background: #050505; border: 1px solid #111; border-radius: 2px; padding: 12px; margin-bottom: 8px; border-left: 3px solid transparent; }
+        .card { background: #050505; border: 1px solid #111; border-radius: 2px; padding: 12px; margin-bottom: 8px; border-left: 3px solid transparent; transition: 0.3s; }
         .card.gov { border-left-color: var(--311); }
         .card.job { border-left-color: var(--jobs); }
-        .card.cams { border-left-color: var(--cams); }
         .card.legis { border-left-color: var(--gov); }
         
         .btn { display: inline-block; margin-top: 8px; padding: 4px 8px; font-size: 0.55rem; color: #fff; border: 1px solid #444; text-decoration: none; text-transform: uppercase; font-weight: 900; }
@@ -39,16 +34,12 @@
 <body>
     <div class="sidebar">
         <h1 style="font-size: 1rem; color: var(--accent); letter-spacing: 5px;">NYC OS : SIGNAL</h1>
-        <div class="status">ORBITAL LINK // v5.4</div>
+        <div class="status">GRID SECURE // v5.5</div>
         
         <div class="section-container active" onclick="this.classList.toggle('active')">
             <div class="section-header header-cams">Surveillance [RADAR]</div>
-            <div id="cam-list" class="feed-content">
-                <div class="card cams">
-                    <h3>LIVE WEATHER RADAR</h3>
-                    <div class="meta">NWS / NOAA FEED</div>
-                    <img src="https://radar.weather.gov/ridge/standard/KOKX_loop.gif" style="width:100%; border:1px solid #333; margin-top:10px;">
-                </div>
+            <div class="feed-content">
+                <img src="https://radar.weather.gov/ridge/standard/KOKX_loop.gif" style="width:100%; border:1px solid #333; margin-top:10px;">
             </div>
         </div>
 
@@ -88,76 +79,73 @@
     async function sync() { fetch311(); fetchJobs(); fetchLegis(); fetchTraffic(); fetchPrecincts(); }
 
     async function fetchPrecincts() {
-        const api = "https://data.cityofnewyork.us/resource/kmgh-dsps.json";
         try {
-            const res = await fetch(api);
+            const res = await fetch("https://data.cityofnewyork.us/resource/kmgh-dsps.json?$limit=77");
             const data = await res.json();
             data.forEach(p => {
-                if(p.the_geom) {
-                    L.geoJSON(p.the_geom, { style: { color: '#444', weight: 1, fillOpacity: 0.1 } })
-                    .addTo(layers.precincts).bindPopup(`Precinct: ${p.precinct}`);
-                }
+                L.geoJSON(p.the_geom, { style: { color: 'var(--accent)', weight: 1, fillOpacity: 0.05, dashArray: '3' } })
+                .addTo(layers.precincts).bindPopup(`Precinct Sector: ${p.precinct}`);
             });
         } catch(e){}
     }
 
     async function fetchLegis() {
-        const rss = "https://council.nyc.gov/events/feed/";
         try {
-            const res = await fetch(PROXY + encodeURIComponent(rss));
+            const res = await fetch(PROXY + encodeURIComponent("https://council.nyc.gov/events/feed/"));
             const json = await res.json();
             const parser = new DOMParser();
             const xml = parser.parseFromString(json.contents, "text/xml");
             const items = xml.querySelectorAll("item");
             document.getElementById('legis-feed').innerHTML = '';
-            Array.from(items).slice(0, 3).forEach(item => {
-                const title = item.querySelector("title").textContent;
-                addCard('legis-feed', title, "CITY COUNCIL", `<a href="${item.querySelector("link").textContent}" target="_blank" class="btn">Signal Tunnel</a>`, 'legis');
-            });
+            if(items.length > 0) {
+                Array.from(items).slice(0, 3).forEach(item => {
+                    addCard('legis-feed', item.querySelector("title").textContent, "NYC COUNCIL", `<a href="${item.querySelector("link").textContent}" target="_blank" class="btn">View Agenda</a>`, 'legis');
+                });
+            } else { throw new Error(); }
         } catch (e) {
-            addCard('legis-feed', "Manual Override Required", "SYSTEM", `<a href="https://council.nyc.gov/events/" target="_blank" class="btn">Open Schedule</a>`, 'legis');
+            addCard('legis-feed', "Legislative Briefing", "ARCHIVE", `<a href="https://council.nyc.gov/events/" target="_blank" class="btn">Portal Link</a>`, 'legis');
         }
     }
 
     async function fetch311() {
         const dateStr = new Date(Date.now() - 86400000).toISOString().split('T')[0];
-        const api = `https://data.cityofnewyork.us/resource/erm2-nwe9.json?$where=created_date > '${dateStr}'&$limit=35&$order=created_date DESC`;
+        const api = `https://data.cityofnewyork.us/resource/erm2-nwe9.json?$where=created_date > '${dateStr}'&$limit=30`;
         try {
             const res = await fetch(api);
             const data = await res.json();
             data.forEach(sig => {
                 if (sig.latitude) {
-                    L.circleMarker([sig.latitude, sig.longitude], { radius: 6, fillColor: 'var(--311)', color: '#fff', weight: 1, fillOpacity: 0.9 }).addTo(layers.gov)
-                    .bindPopup(`<b>${sig.complaint_type}</b><br>${sig.descriptor || ''}`);
-                    addCard('gov-feed', sig.complaint_type, sig.agency, `${sig.descriptor || 'Pothole'} | ${sig.incident_address}`, 'gov');
+                    L.circleMarker([sig.latitude, sig.longitude], { radius: 6, fillColor: 'var(--311)', color: '#fff', weight: 1, fillOpacity: 0.8 }).addTo(layers.gov);
+                    addCard('gov-feed', sig.complaint_type, sig.agency, `${sig.descriptor || 'Active'} | ${sig.incident_address || 'Unlisted'}`, 'gov');
                 }
             });
         } catch (e) {}
     }
 
     async function fetchJobs() {
-        const target = "https://data.cityofnewyork.us/resource/kv7j-sfdc.json?$limit=8&$order=posting_date DESC";
         try {
-            const res = await fetch(PROXY + encodeURIComponent(target));
+            const res = await fetch(PROXY + encodeURIComponent("https://data.cityofnewyork.us/resource/kv7j-sfdc.json?$limit=5"));
             const json = await res.json();
             const data = JSON.parse(json.contents);
+            document.getElementById('jobs-feed').innerHTML = '';
             data.forEach(job => {
                 const link = `https://cityjobs.nyc.gov/jobs/${job.job_id}`;
                 addCard('jobs-feed', job.business_title, job.agency, `<a href="${link}" target="_blank" class="btn">View Specs</a>`, 'job');
             });
-        } catch (e) {}
+        } catch (e) {
+            addCard('jobs-feed', "Civil Service Portal", "NYC GOV", `<a href="https://cityjobs.nyc.gov/" target="_blank" class="btn">Market Link</a>`, 'job');
+        }
     }
 
     async function fetchTraffic() {
-        const api = "https://data.cityofnewyork.us/resource/i4gi-tjb9.json?$limit=100";
         try {
-            const res = await fetch(api);
+            const res = await fetch("https://data.cityofnewyork.us/resource/i4gi-tjb9.json?$limit=80");
             const data = await res.json();
             data.forEach(link => {
                 if (link.link_points) {
                     const coords = link.link_points.split(' ').map(p => p.split(',').reverse());
                     let color = link.speed < 15 ? "#f00" : (link.speed < 30 ? "#ff0" : "#0f0");
-                    L.polyline(coords, { color: color, weight: 4, opacity: 0.6 }).addTo(layers.traffic);
+                    L.polyline(coords, { color: color, weight: 4, opacity: 0.5 }).addTo(layers.traffic);
                 }
             });
         } catch (e) {}
