@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>THE SIGNAL: NYC OS [WAR ROOM v4.3]</title>
+    <title>THE SIGNAL: NYC OS [WAR ROOM v4.5]</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         :root { --bg: #000; --accent: #ff3e3e; --311: #00f2ff; --jobs: #bc61ff; --cams: #ffea00; --panel: #0a0a0a; }
@@ -12,21 +12,25 @@
         #map { height: 100%; width: 100%; background: #000 !important; }
         .leaflet-tile { filter: invert(100%) hue-rotate(180deg) brightness(0.7) contrast(1.4) !important; }
         
-        /* Tactical Video Popup */
-        .cam-feed { width: 300px; height: 170px; background: #111; border: 1px solid var(--cams); overflow: hidden; position: relative; }
-        .cam-feed iframe { width: 100%; height: 100%; border: none; }
-        .cam-label { position: absolute; top: 5px; left: 5px; font-size: 9px; background: rgba(0,0,0,0.8); padding: 2px 5px; color: var(--cams); font-family: monospace; z-index: 10; pointer-events: none; }
+        /* Tactical Intelligence Popup */
+        .intel-feed { width: 320px; height: 180px; background: #111; border: 1px solid var(--cams); overflow: hidden; position: relative; }
+        .intel-feed iframe { width: 100%; height: 100%; border: none; }
         
         .sidebar, .right-panel { width: 340px; background: var(--panel); border-right: 1px solid #1a1a1a; overflow-y: auto; padding: 20px; z-index: 10; }
         .right-panel { border-right: none; border-left: 1px solid #1a1a1a; width: 380px; }
         
+        /* CHROMATIC HEADERS: Matching Pin Colors */
         .section-header { 
-            font-size: 0.85rem; color: var(--accent); letter-spacing: 4px; margin: 20px 0 10px 0; 
+            font-size: 0.85rem; letter-spacing: 4px; margin: 20px 0 10px 0; 
             text-transform: uppercase; border-bottom: 2px solid #1a1a1a; padding-bottom: 10px; 
             font-weight: 900; cursor: pointer; display: flex; justify-content: space-between; 
         }
+        .header-cams { color: var(--cams); }
+        .header-jobs { color: var(--jobs); }
+        .header-311 { color: var(--311); }
+
         .section-header::after { content: ' [+]'; font-size: 0.6rem; color: #444; }
-        .active .section-header::after { content: ' [-]'; color: var(--accent); }
+        .active .section-header::after { content: ' [-]'; color: #fff; }
         .feed-content { display: none; margin-bottom: 20px; }
         .active .feed-content { display: block; }
 
@@ -37,20 +41,19 @@
         .card.cams { border-left-color: var(--cams); }
         .card h3 { font-size: 0.75rem; margin: 0 0 4px 0; color: #eee; font-weight: 700; }
         .card .meta { font-size: 0.45rem; color: #555; text-transform: uppercase; margin-bottom: 3px; font-weight: 800; }
-        .card .desc { font-size: 0.6rem; color: #777; line-height: 1.3; }
         
         .btn { display: inline-block; margin-top: 8px; padding: 4px 8px; font-size: 0.55rem; color: var(--jobs); border: 1px solid var(--jobs); text-decoration: none; text-transform: uppercase; font-weight: 900; cursor: pointer; }
         .leaflet-popup-content-wrapper { background: #111; color: #fff; border-radius: 4px; padding: 0; }
-        .leaflet-popup-content { margin: 10px; width: 300px !important; }
+        .leaflet-popup-content { margin: 10px; width: 320px !important; }
     </style>
 </head>
 <body>
     <div class="sidebar">
         <h1 style="font-size: 1rem; color: var(--accent); letter-spacing: 5px; margin-bottom: 20px;">NYC OS : SIGNAL</h1>
-        <div class="status" id="status-l">EYES ON GRID</div>
+        <div class="status">EYES ON GRID // v4.5</div>
         
         <div class="section-container active" onclick="this.classList.toggle('active')">
-            <div class="section-header">Surveillance</div>
+            <div class="section-header header-cams">Surveillance</div>
             <div id="cam-list" class="feed-content"></div>
         </div>
     </div>
@@ -58,15 +61,15 @@
     <div id="map-container"><div id="map"></div></div>
 
     <div class="right-panel">
-        <div class="status" id="status-r">HEALTH: NOMINAL</div>
+        <div class="status">HEALTH: NOMINAL</div>
         
-        <div class="section-container" onclick="this.classList.toggle('active')">
-            <div class="section-header">Jobs Market</div>
+        <div class="section-container active" onclick="this.classList.toggle('active')">
+            <div class="section-header header-jobs">Jobs Market</div>
             <div id="jobs-feed" class="feed-content"></div>
         </div>
 
         <div class="section-container active" onclick="this.classList.toggle('active')">
-            <div class="section-header">311 Vitals</div>
+            <div class="section-header header-311">311 Vitals</div>
             <div id="gov-feed" class="feed-content"></div>
         </div>
     </div>
@@ -77,40 +80,33 @@
     let map, layers = { gov: L.layerGroup(), jobs: L.layerGroup(), cams: L.layerGroup() };
     const PROXY = "https://api.allorigins.win/get?url=";
 
-    // HIGH-UPTIME CIVILIAN & PARK FEEDS
-    const CAMERA_NODES = [
-        { name: "Times Square Main", lat: 40.7580, lon: -73.9855, type: "yt", id: "mRe-514tGMg" },
-        { name: "Times Square South", lat: 40.7570, lon: -73.9860, type: "yt", id: "1-iS7LybFB8" },
-        { name: "Brooklyn Bridge", lat: 40.7061, lon: -73.9969, type: "yt", id: "v_782q5_0_g" },
-        { name: "Bronx Zoo Penguin cam", lat: 40.8506, lon: -73.8770, type: "yt", id: "6f6eB6n3XvE" }
+    // LOCAL NEWS INTEL NODES (Embedded-friendly)
+    const INTEL_NODES = [
+        { name: "WABC-7 Live Desk", lat: 40.7711, lon: -73.9818, id: "WABC" },
+        { name: "WNBC-4 Intelligence", lat: 40.7589, lon: -73.9790, id: "WNBC" },
+        { name: "PIX11 News Feed", lat: 40.7495, lon: -73.9740, id: "WPIX" }
     ];
 
     function initMap() {
         map = L.map('map', { zoomControl: false, attributionControl: false }).setView(NYC_CENTER, 12);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
         Object.values(layers).forEach(l => l.addTo(map));
-        deployCams();
+        deployIntel();
         sync();
     }
 
-    function deployCams() {
-        CAMERA_NODES.forEach(cam => {
-            let embedUrl = "";
-            if(cam.type === "yt") {
-                embedUrl = `https://www.youtube.com/embed/${cam.id}?autoplay=1&mute=1&controls=0&modestbranding=1`;
-            }
-
+    function deployIntel() {
+        INTEL_NODES.forEach(node => {
             const popup = `
-                <div class="cam-feed">
-                    <div class="cam-label">LIVE // NODE_${cam.id.substring(0,4)}</div>
-                    <iframe src="${embedUrl}" allow="autoplay; encrypted-media" allowfullscreen></iframe>
+                <div class="intel-feed">
+                    <iframe src="https://abc7ny.com/video/embed/?pid=12345" allowfullscreen></iframe>
                 </div>`;
             
-            L.circleMarker([cam.lat, cam.lon], { radius: 8, fillColor: 'var(--cams)', color: '#fff', weight: 2, fillOpacity: 1 })
+            L.circleMarker([node.lat, node.lon], { radius: 8, fillColor: 'var(--cams)', color: '#fff', weight: 2, fillOpacity: 1 })
             .addTo(layers.cams)
             .bindPopup(popup);
 
-            addCard('cam-list', cam.name, "NODE ACTIVE", `Type: ${cam.type.toUpperCase()}`, 'cams');
+            addCard('cam-list', node.name, "LIVE INTEL", "Signal Active", 'cams');
         });
     }
 
@@ -118,7 +114,7 @@
 
     async function fetch311() {
         const dateStr = new Date(Date.now() - 86400000).toISOString().split('T')[0];
-        const api = `https://data.cityofnewyork.us/resource/erm2-nwe9.json?$where=created_date > '${dateStr}'&$limit=50&$order=created_date DESC`;
+        const api = `https://data.cityofnewyork.us/resource/erm2-nwe9.json?$where=created_date > '${dateStr}'&$limit=40&$order=created_date DESC`;
         try {
             const res = await fetch(api);
             const data = await res.json();
@@ -133,7 +129,7 @@
     }
 
     async function fetchJobs() {
-        const target = "https://data.cityofnewyork.us/resource/kv7j-sfdc.json?$limit=12&$order=posting_date DESC";
+        const target = "https://data.cityofnewyork.us/resource/kv7j-sfdc.json?$limit=8&$order=posting_date DESC";
         try {
             const res = await fetch(PROXY + encodeURIComponent(target));
             const json = await res.json();
@@ -148,7 +144,7 @@
     function addCard(id, title, meta, desc, type) {
         const div = document.createElement('div');
         div.className = `card ${type}`;
-        div.innerHTML = `<div class="meta">${meta}</div><h3>${title}</h3><div class="desc">${desc}</div>`;
+        div.innerHTML = `<div class="meta">${meta}</div><h3>${title}</h3><div class="desc" style="font-size:0.6rem; color:#666;">${desc}</div>`;
         document.getElementById(id).appendChild(div);
     }
 
