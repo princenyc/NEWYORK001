@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>THE SIGNAL: NYC OS [v5.6 INFRASTRUCTURE]</title>
+    <title>THE SIGNAL: NYC OS [v5.7 PRECISION]</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         :root { --bg: #000; --accent: #ff3e3e; --311: #00f2ff; --jobs: #bc61ff; --cams: #ffea00; --gov: #ff9900; --wifi: #ffffff; --panel: #0a0a0a; }
@@ -26,17 +26,24 @@
         .card.gov { border-left-color: var(--311); }
         .card.job { border-left-color: var(--jobs); }
         .card.wifi { border-left-color: var(--wifi); }
+        .card.legis { border-left-color: var(--gov); }
         
-        .btn { display: inline-block; margin-top: 8px; padding: 4px 8px; font-size: 0.55rem; color: #fff; border: 1px solid #444; text-decoration: none; text-transform: uppercase; font-weight: 900; }
+        .btn { display: inline-block; margin-top: 8px; padding: 4px 8px; font-size: 0.55rem; color: #fff; border: 1px solid #444; text-decoration: none; text-transform: uppercase; font-weight: 900; cursor: pointer; }
         .btn:hover { background: #fff; color: #000; }
         .leaflet-popup-content-wrapper { background: #111; color: #fff; border-radius: 4px; border: 1px solid #333; }
+        .leaflet-popup-content b { color: var(--accent); }
     </style>
 </head>
 <body>
     <div class="sidebar">
         <h1 style="font-size: 1rem; color: var(--accent); letter-spacing: 5px;">NYC OS : SIGNAL</h1>
-        <div class="status">GRID SECURE // v5.6</div>
+        <div class="status">GRID SECURE // v5.7</div>
         
+        <div class="section-container active" onclick="this.classList.toggle('active')">
+            <div class="section-header header-gov">Government Pulse</div>
+            <div id="legis-feed" class="feed-content"></div>
+        </div>
+
         <div class="section-container active" onclick="this.classList.toggle('active')">
             <div class="section-header header-wifi">Digital Skeleton</div>
             <div id="wifi-feed" class="feed-content"></div>
@@ -79,33 +86,49 @@
         sync();
     }
 
-    async function sync() { fetch311(); fetchJobs(); fetchWifi(); fetchTraffic(); }
+    async function sync() { fetch311(); fetchJobs(); fetchWifi(); fetchLegis(); fetchTraffic(); }
 
     async function fetchWifi() {
-        // LinkNYC Dataset - Public WiFi Hubs
         try {
-            const res = await fetch("https://data.cityofnewyork.us/resource/b926-8y7q.json?$limit=100");
+            const res = await fetch("https://data.cityofnewyork.us/resource/b926-8y7q.json?$limit=80");
             const data = await res.json();
-            document.getElementById('wifi-feed').innerHTML = '';
             data.forEach(node => {
                 if (node.latitude) {
-                    L.circleMarker([node.latitude, node.longitude], { radius: 3, fillColor: 'var(--wifi)', color: '#fff', weight: 1, fillOpacity: 0.5 }).addTo(layers.wifi)
-                    .bindPopup(`<b>Digital Node</b><br>${node.street_address}`);
+                    L.circleMarker([node.latitude, node.longitude], { radius: 3, fillColor: 'var(--wifi)', color: '#fff', weight: 1, fillOpacity: 0.5 })
+                    .addTo(layers.wifi).bindPopup(`<b>Digital Node</b><br>${node.street_address}`);
                 }
             });
-            addCard('wifi-feed', "Digital Grid Active", "LINKNYC", "100 Nodes Processed", 'wifi');
+            addCard('wifi-feed', "Digital Grid Active", "LINKNYC", "Nodes Mapped", 'wifi');
         } catch(e){}
+    }
+
+    async function fetchLegis() {
+        try {
+            const res = await fetch(PROXY + encodeURIComponent("https://council.nyc.gov/events/feed/"));
+            const json = await res.json();
+            const parser = new DOMParser();
+            const xml = parser.parseFromString(json.contents, "text/xml");
+            const items = xml.querySelectorAll("item");
+            document.getElementById('legis-feed').innerHTML = '';
+            Array.from(items).slice(0, 3).forEach(item => {
+                const title = item.querySelector("title").textContent;
+                addCard('legis-feed', title, "NYC COUNCIL", `<a href="${item.querySelector("link").textContent}" target="_blank" class="btn">Signal Tunnel</a>`, 'legis');
+            });
+        } catch (e) {
+            addCard('legis-feed', "Manual Override Required", "SYSTEM", `<a href="https://council.nyc.gov/events/" target="_blank" class="btn">Open Schedule</a>`, 'legis');
+        }
     }
 
     async function fetch311() {
         const dateStr = new Date(Date.now() - 86400000).toISOString().split('T')[0];
-        const api = `https://data.cityofnewyork.us/resource/erm2-nwe9.json?$where=created_date > '${dateStr}'&$limit=30`;
+        const api = `https://data.cityofnewyork.us/resource/erm2-nwe9.json?$where=created_date > '${dateStr}'&$limit=35&$order=created_date DESC`;
         try {
             const res = await fetch(api);
             const data = await res.json();
             data.forEach(sig => {
                 if (sig.latitude) {
-                    L.circleMarker([sig.latitude, sig.longitude], { radius: 6, fillColor: 'var(--311)', color: '#fff', weight: 1, fillOpacity: 0.8 }).addTo(layers.gov);
+                    L.circleMarker([sig.latitude, sig.longitude], { radius: 6, fillColor: 'var(--311)', color: '#fff', weight: 1, fillOpacity: 0.9 })
+                    .addTo(layers.gov).bindPopup(`<b>${sig.complaint_type}</b><br>${sig.descriptor || ''}`);
                     addCard('gov-feed', sig.complaint_type, sig.agency, `${sig.descriptor || 'Active'}`, 'gov');
                 }
             });
@@ -114,7 +137,7 @@
 
     async function fetchJobs() {
         try {
-            const res = await fetch(PROXY + encodeURIComponent("https://data.cityofnewyork.us/resource/kv7j-sfdc.json?$limit=5"));
+            const res = await fetch(PROXY + encodeURIComponent("https://data.cityofnewyork.us/resource/kv7j-sfdc.json?$limit=8&$order=posting_date DESC"));
             const json = await res.json();
             const data = JSON.parse(json.contents);
             document.getElementById('jobs-feed').innerHTML = '';
@@ -129,7 +152,7 @@
 
     async function fetchTraffic() {
         try {
-            const res = await fetch("https://data.cityofnewyork.us/resource/i4gi-tjb9.json?$limit=50");
+            const res = await fetch("https://data.cityofnewyork.us/resource/i4gi-tjb9.json?$limit=60");
             const data = await res.json();
             data.forEach(link => {
                 if (link.link_points) {
