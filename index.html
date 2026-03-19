@@ -3,158 +3,114 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>THE SIGNAL: NYC OS [v6.1 SHIELD]</title>
+    <title>THE SIGNAL: NYC OS [v7.0 CORE]</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        :root { --bg: #000; --accent: #ff3e3e; --311: #00f2ff; --jobs: #bc61ff; --gov: #ff9900; --wifi: #ffffff; --shelter: #00ff00; --panel: #0a0a0a; }
-        body { margin: 0; background: var(--bg); color: #fff; font-family: 'Segoe UI', sans-serif; height: 100vh; display: flex; overflow: hidden; }
-        #map-container { flex-grow: 1; background: #000; position: relative; }
-        #map { height: 100%; width: 100%; background: #000 !important; }
-        .leaflet-tile { filter: invert(100%) hue-rotate(180deg) brightness(0.7) contrast(1.4) !important; }
+        :root { --bg: #000; --accent: #ff3e3e; --311: #00f2ff; --jobs: #bc61ff; --radar: #ff9900; --panel: #0a0a0a; }
+        body { margin: 0; background: var(--bg); color: #fff; font-family: 'Segoe UI', Tahoma, sans-serif; height: 100vh; display: flex; overflow: hidden; }
+        #map { flex-grow: 1; background: #000; }
+        .sidebar, .right-panel { width: 340px; background: var(--panel); border-right: 1px solid #1a1a1a; overflow-y: auto; padding: 20px; z-index: 10; box-shadow: 10px 0 20px rgba(0,0,0,0.5); }
+        .right-panel { border-right: none; border-left: 1px solid #1a1a1a; }
         
-        /* Side Panels */
-        .sidebar, .right-panel { width: 340px; background: var(--panel); border-right: 1px solid #1a1a1a; overflow-y: auto; padding: 20px; z-index: 10; }
-        .right-panel { border-right: none; border-left: 1px solid #1a1a1a; width: 380px; }
-        
-        /* HUD Vitals */
-        .hud-vitals { display: flex; gap: 8px; margin-bottom: 25px; border-bottom: 2px solid #111; padding-bottom: 15px; }
-        .v-node { flex: 1; text-align: center; border: 1px solid #111; padding: 5px; }
-        .v-node .val { font-size: 0.8rem; font-weight: 900; font-family: monospace; }
+        .status-bar { font-size: 0.5rem; color: #555; margin-bottom: 15px; border: 1px solid #222; padding: 5px; text-align: center; letter-spacing: 2px; }
+        .status-bar span { color: #00ff00; font-weight: bold; }
+
+        .vitals { display: flex; gap: 8px; margin-bottom: 25px; border-bottom: 2px solid #111; padding-bottom: 15px; }
+        .v-node { flex: 1; text-align: center; border: 1px solid #111; padding: 5px; background: #050505; }
+        .v-node .val { font-size: 0.8rem; font-weight: 900; font-family: monospace; color: var(--311); }
         .v-node .lbl { font-size: 0.4rem; color: #444; text-transform: uppercase; }
-        #count-311 { color: var(--311); } #count-wifi { color: var(--wifi); } #count-shelter { color: var(--shelter); }
 
-        .section-header { font-size: 0.8rem; letter-spacing: 3px; margin: 15px 0 10px 0; text-transform: uppercase; border-bottom: 1px solid #222; padding-bottom: 8px; font-weight: 900; cursor: pointer; }
-        .header-wifi { color: var(--wifi); } .header-jobs { color: var(--jobs); } .header-311 { color: var(--311); } .header-shelter { color: var(--shelter); }
-
-        .feed-content { display: none; }
-        .active .feed-content { display: block; }
-        .card { background: #050505; border: 1px solid #111; padding: 10px; margin-bottom: 6px; border-left: 3px solid transparent; }
-        .card.gov { border-left-color: var(--311); } .card.shelter { border-left-color: var(--shelter); } .card.wifi { border-left-color: var(--wifi); }
+        .section-header { font-size: 0.7rem; letter-spacing: 3px; margin: 20px 0 10px 0; text-transform: uppercase; border-bottom: 1px solid #222; padding-bottom: 5px; font-weight: 900; color: var(--accent); }
+        .card { background: #080808; border: 1px solid #1a1a1a; padding: 10px; margin-bottom: 8px; border-left: 3px solid var(--311); font-size: 0.65rem; transition: 0.3s; }
+        .card:hover { background: #111; border-color: #333; }
+        .card.job { border-left-color: var(--jobs); }
+        .btn { display: inline-block; margin-top: 8px; padding: 4px 8px; font-size: 0.55rem; color: #fff; border: 1px solid #333; text-decoration: none; text-transform: uppercase; background: #000; }
         
-        .btn { display: inline-block; margin-top: 5px; padding: 3px 6px; font-size: 0.5rem; color: #fff; border: 1px solid #444; text-decoration: none; text-transform: uppercase; font-weight: 900; }
-        .leaflet-popup-content-wrapper { background: #111; color: #fff; border: 1px solid #333; border-radius: 2px; }
+        /* Map Dark Mode */
+        .leaflet-tile { filter: invert(100%) hue-rotate(180deg) brightness(0.5) contrast(1.5) !important; }
+        .leaflet-container { background: #000 !important; }
     </style>
 </head>
 <body>
     <div class="sidebar">
-        <h1 style="font-size: 0.9rem; color: var(--accent); letter-spacing: 5px;">NYC OS : SIGNAL</h1>
-        <div class="hud-vitals">
-            <div class="v-node"><div class="val" id="count-311">0</div><div class="lbl">311</div></div>
-            <div class="v-node"><div class="val" id="count-wifi">0</div><div class="lbl">WiFi</div></div>
-            <div class="v-node"><div class="val" id="count-shelter">0</div><div class="lbl">Shelter</div></div>
-        </div>
+        <h1 style="font-size: 1rem; color: var(--accent); letter-spacing: 5px; margin: 0 0 5px 0;">NYC OS : SIGNAL</h1>
+        <div class="status-bar">UPLINK: <span id="uplink-status">STABLE</span> // NODE: <span>ACER-BRAIN</span></div>
         
-        <div class="section-container active" onclick="this.classList.toggle('active')">
-            <div class="section-header header-shelter">Emergency Shelters</div>
-            <div id="shelter-feed" class="feed-content"></div>
+        <div class="vitals">
+            <div class="v-node"><div class="val" id="count-311">--</div><div class="lbl">311 Signals</div></div>
+            <div class="v-node"><div class="val" id="count-jobs">--</div><div class="lbl">Open Jobs</div></div>
         </div>
 
-        <div class="section-container active" onclick="this.classList.toggle('active')">
-            <div class="section-header header-wifi">Digital Skeleton</div>
-            <div id="wifi-feed" class="feed-content"></div>
-        </div>
+        <div class="section-header">Live 311 Intelligence</div>
+        <div id="feed-311"></div>
     </div>
 
-    <div id="map-container"><div id="map"></div></div>
+    <div id="map"></div>
 
     <div class="right-panel">
-        <div class="section-container active" onclick="this.classList.toggle('active')">
-            <div class="section-header header-jobs">Jobs Market</div>
-            <div id="jobs-feed" class="feed-content"></div>
-        </div>
-
-        <div class="section-container active" onclick="this.classList.toggle('active')">
-            <div class="section-header header-311">311 Vitals</div>
-            <div id="gov-feed" class="feed-content"></div>
-        </div>
+        <div class="section-header" style="color:var(--jobs)">Career Opportunities</div>
+        <div id="feed-jobs"></div>
+        
+        <div class="section-header" style="color:var(--radar)">Atmospheric Loop</div>
+        <img id="radar-img" src="" style="width:100%; border:1px solid #222; opacity:0.8; filter: grayscale(0.5) contrast(1.2);">
     </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-    const NYC_CENTER = [40.7128, -74.0060];
-    let map, layers = { gov: L.layerGroup(), jobs: L.layerGroup(), wifi: L.layerGroup(), shelter: L.layerGroup() };
-    const PROXY = "https://api.allorigins.win/get?url=";
+    const map = L.map('map', { zoomControl: false, attributionControl: false }).setView([40.7128, -74.0060], 11);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+    const markerGroup = L.layerGroup().addTo(map);
 
-    function initMap() {
-        map = L.map('map', { zoomControl: false, attributionControl: false }).setView(NYC_CENTER, 12);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-        Object.values(layers).forEach(l => l.addTo(map));
-        sync();
-    }
-
-    async function sync() { fetch311(); fetchJobs(); fetchWifi(); fetchShelters(); }
-
-    async function fetchShelters() {
-        const target = "https://data.cityofnewyork.us/resource/7ax3-v6p9.json?$limit=30";
+    async function refreshIntel() {
         try {
-            const res = await fetch(PROXY + encodeURIComponent(target));
-            const json = await res.json();
-            const data = JSON.parse(json.contents);
-            document.getElementById('count-shelter').innerText = data.length;
-            data.forEach(s => {
-                if (s.latitude) {
-                    L.circleMarker([s.latitude, s.longitude], { radius: 6, fillColor: 'var(--shelter)', color: '#fff', weight: 1, fillOpacity: 0.8 })
-                    .addTo(layers.shelter).bindPopup(`<b>Shelter Node</b><br>${s.center_name}`);
-                    addCard('shelter-feed', s.center_name, s.borough, s.address, 'shelter');
-                }
-            });
-        } catch(e) { document.getElementById('count-shelter').innerText = "FAIL"; }
-    }
-
-    async function fetchWifi() {
-        const target = "https://data.cityofnewyork.us/resource/y979-4p5r.json?$limit=50";
-        try {
-            const res = await fetch(PROXY + encodeURIComponent(target));
-            const json = await res.json();
-            const data = JSON.parse(json.contents);
-            document.getElementById('count-wifi').innerText = data.length;
-            data.forEach(node => {
-                if (node.latitude) {
-                    L.circleMarker([node.latitude, node.longitude], { radius: 3, fillColor: 'var(--wifi)', color: '#fff', weight: 1, fillOpacity: 0.5 })
-                    .addTo(layers.wifi).bindPopup(`<b>WiFi Node</b><br>${node.location}`);
-                }
-            });
-            addCard('wifi-feed', "Digital Grid Online", "HOTSPOTS", "Signal Active", 'wifi');
-        } catch(e) { document.getElementById('count-wifi').innerText = "FAIL"; }
-    }
-
-    async function fetch311() {
-        const dateStr = new Date(Date.now() - 86400000).toISOString().split('T')[0];
-        const api = `https://data.cityofnewyork.us/resource/erm2-nwe9.json?$where=created_date > '${dateStr}'&$limit=30`;
-        try {
-            const res = await fetch(api);
+            // FETCHING FROM YOUR ACER PRIVATE CLOUD
+            const res = await fetch('https://api.chartreuseexplosives.com/pulse');
             const data = await res.json();
-            document.getElementById('count-311').innerText = data.length;
-            data.forEach(sig => {
-                if (sig.latitude) {
-                    L.circleMarker([sig.latitude, sig.longitude], { radius: 5, fillColor: 'var(--311)', color: '#fff', weight: 1, fillOpacity: 0.8 }).addTo(layers.gov);
-                    addCard('gov-feed', sig.complaint_type, sig.agency, sig.descriptor || 'Active', 'gov');
+
+            // Update Header Stats
+            document.getElementById('count-311').innerText = data.vitals_311.length;
+            document.getElementById('count-jobs').innerText = data.jobs_market.length;
+            document.getElementById('radar-img').src = data.radar + '?cache=' + Date.now();
+            document.getElementById('uplink-status').innerText = "STABLE";
+            document.getElementById('uplink-status').style.color = "#00ff00";
+
+            // Clear Feed & Map
+            markerGroup.clearLayers();
+            document.getElementById('feed-311').innerHTML = '';
+            document.getElementById('feed-jobs').innerHTML = '';
+
+            // Map 311 Points
+            data.vitals_311.forEach(item => {
+                if(item.latitude) {
+                    L.circleMarker([item.latitude, item.longitude], { 
+                        radius: 4, color: '#00f2ff', weight: 1, fillOpacity: 0.5 
+                    }).addTo(markerGroup);
+                    
+                    createCard('feed-311', item.complaint_type, item.incident_address || 'Location Hidden', 'gov');
                 }
             });
-        } catch (e) { document.getElementById('count-311').innerText = "ERR"; }
-    }
 
-    async function fetchJobs() {
-        const target = "https://data.cityofnewyork.us/resource/kv7j-sfdc.json?$limit=8";
-        try {
-            const res = await fetch(PROXY + encodeURIComponent(target));
-            const json = await res.json();
-            const data = JSON.parse(json.contents);
-            document.getElementById('jobs-feed').innerHTML = '';
-            data.forEach(job => {
-                addCard('jobs-feed', job.business_title, job.agency, `<a href="https://cityjobs.nyc.gov/jobs/${job.job_id}" target="_blank" class="btn">View Specs</a>`, 'job');
+            // Map Jobs
+            data.jobs_market.forEach(job => {
+                createCard('feed-jobs', job.business_title, job.agency, 'job', job.job_id);
             });
-        } catch (e) {}
+
+        } catch (e) {
+            document.getElementById('uplink-status').innerText = "OFFLINE";
+            document.getElementById('uplink-status').style.color = "red";
+        }
     }
 
-    function addCard(id, title, meta, desc, type) {
+    function createCard(containerId, title, sub, type, id = null) {
         const div = document.createElement('div');
         div.className = `card ${type}`;
-        div.innerHTML = `<div class="meta" style="font-size:0.4rem; color:#666;">${meta}</div><h3 style="font-size:0.65rem; margin:2px 0;">${title}</h3><div style="font-size:0.55rem;">${desc}</div>`;
-        document.getElementById(id).appendChild(div);
+        div.innerHTML = `<b>${title}</b><br><span style="color:#666">${sub}</span>`;
+        if(id) div.innerHTML += `<br><a href="https://cityjobs.nyc.gov/jobs/${id}" target="_blank" class="btn">View Specs</a>`;
+        document.getElementById(containerId).appendChild(div);
     }
 
-    initMap();
+    refreshIntel();
+    setInterval(refreshIntel, 60000); // Auto-sync every 60 seconds
 </script>
 </body>
 </html>
