@@ -3,103 +3,466 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>THE SIGNAL: NYC OS [v7.5 SURVEILLANCE]</title>
+    <title>THE SIGNAL: NYC OS [v8.0]</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        :root { --bg: #000; --accent: #ff3e3e; --311: #00f2ff; --cam: #00ff00; --panel: #0a0a0a; }
-        body { margin: 0; background: var(--bg); color: #fff; font-family: 'Segoe UI', sans-serif; height: 100vh; display: flex; overflow: hidden; }
-        #map { flex-grow: 1; background: #000; }
-        
-        .sidebar, .right-panel { width: 340px; background: var(--panel); border-right: 1px solid #1a1a1a; overflow-y: auto; padding: 20px; z-index: 10; }
-        .right-panel { border-right: none; border-left: 1px solid #1a1a1a; }
-        
-        .status-bar { font-size: 0.5rem; color: #555; margin-bottom: 15px; border: 1px solid #222; padding: 5px; text-align: center; letter-spacing: 2px; }
-        .status-bar span { color: #00ff00; font-weight: bold; }
-        
-        .section-header { font-size: 0.7rem; letter-spacing: 3px; margin: 20px 0 10px 0; text-transform: uppercase; border-bottom: 1px solid #222; padding-bottom: 5px; font-weight: 900; color: var(--accent); }
-        
-        /* Camera Grid Styles */
-        #cam-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 15px; }
-        .cam-box { border: 1px solid #222; background: #000; position: relative; overflow: hidden; }
-        .cam-box img { width: 100%; height: 100px; object-fit: cover; filter: grayscale(1) contrast(1.2); opacity: 0.8; display: block; }
-        .cam-label { font-size: 0.45rem; color: #555; padding: 3px; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        :root {
+            --bg: #000;
+            --panel: #080808;
+            --border: #1a1a1a;
+            --accent: #ff3e3e;
+            --cyan: #00f2ff;
+            --green: #00ff00;
+            --purple: #bc61ff;
+            --amber: #ffaa00;
+            --text-muted: #555;
+        }
+        * { box-sizing: border-box; }
+        body { margin: 0; background: var(--bg); color: #fff; font-family: 'Segoe UI', monospace; height: 100vh; display: flex; overflow: hidden; }
 
-        .card { background: #080808; border: 1px solid #1a1a1a; padding: 10px; margin-bottom: 8px; border-left: 3px solid var(--311); font-size: 0.65rem; }
-        .leaflet-tile { filter: invert(100%) hue-rotate(180deg) brightness(0.5) contrast(1.5) !important; }
+        #map { flex-grow: 1; background: #000; position: relative; }
+        .leaflet-tile { filter: invert(100%) hue-rotate(180deg) brightness(0.4) contrast(1.6) !important; }
+
+        /* SIDEBARS */
+        .sidebar { width: 300px; background: var(--panel); border-right: 1px solid var(--border); overflow-y: auto; display: flex; flex-direction: column; z-index: 10; }
+        .right-panel { width: 320px; background: var(--panel); border-left: 1px solid var(--border); overflow-y: auto; display: flex; flex-direction: column; z-index: 10; }
+
+        .panel-block { padding: 12px 14px; border-bottom: 1px solid var(--border); }
+
+        /* HEADER */
+        .header { padding: 10px 14px 8px; border-bottom: 1px solid var(--border); }
+        .header h1 { font-size: 0.85rem; color: var(--accent); letter-spacing: 4px; margin: 0 0 4px 0; }
+        .status-row { display: flex; gap: 8px; font-size: 0.5rem; color: var(--text-muted); letter-spacing: 1.5px; flex-wrap: wrap; }
+        .status-dot { color: var(--green); font-weight: bold; }
+
+        /* SECTION LABELS */
+        .section-label { font-size: 0.55rem; letter-spacing: 3px; text-transform: uppercase; color: var(--text-muted); margin-bottom: 8px; font-weight: 700; }
+
+        /* LAYER TOGGLES */
+        .layer-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+        .layer-btn { font-size: 0.55rem; letter-spacing: 1px; padding: 5px 8px; border: 1px solid var(--border); background: #000; color: #444; cursor: pointer; text-align: left; text-transform: uppercase; transition: all 0.15s; }
+        .layer-btn.active { border-color: currentColor; }
+        .layer-btn.l-311 { color: var(--cyan); }
+        .layer-btn.l-nypd { color: var(--accent); }
+        .layer-btn.l-permits { color: var(--amber); }
+        .layer-btn.l-aircraft { color: var(--purple); }
+        .layer-btn.l-mta { color: var(--green); }
+        .layer-btn.l-quake { color: #ff8c00; }
+        .layer-btn.active { background: #111; }
+
+        /* CAMERA GRID */
+        #cam-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+        .cam-box { border: 1px solid var(--border); background: #000; overflow: hidden; }
+        .cam-box img { width: 100%; height: 85px; object-fit: cover; filter: grayscale(1) contrast(1.3); opacity: 0.75; display: block; }
+        .cam-label { font-size: 0.4rem; color: var(--text-muted); padding: 2px 4px; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+        /* FEED CARDS */
+        .feed-card { border: 1px solid var(--border); padding: 7px 9px; margin-bottom: 5px; font-size: 0.6rem; border-left: 2px solid var(--cyan); }
+        .feed-card.nypd { border-left-color: var(--accent); }
+        .feed-card.permit { border-left-color: var(--amber); }
+        .feed-card.aircraft { border-left-color: var(--purple); }
+        .feed-card.quake { border-left-color: #ff8c00; }
+        .feed-card .title { font-weight: bold; margin-bottom: 2px; }
+        .feed-card .sub { color: #555; }
+
+        /* STAT STRIP */
+        .stat-strip { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
+        .stat-box { border: 1px solid var(--border); padding: 7px; text-align: center; }
+        .stat-num { font-size: 1.1rem; font-weight: 700; }
+        .stat-lbl { font-size: 0.45rem; color: var(--text-muted); letter-spacing: 1px; text-transform: uppercase; margin-top: 2px; }
+
+        /* WEATHER */
+        .weather-row { display: flex; justify-content: space-between; align-items: center; }
+        .weather-temp { font-size: 1.8rem; font-weight: 700; color: var(--cyan); }
+        .weather-detail { font-size: 0.6rem; color: #555; line-height: 1.8; text-align: right; }
+
+        /* ALERTS */
+        .alert-box { border: 1px solid #ff8c0044; background: #ff8c0008; padding: 7px 9px; margin-bottom: 5px; font-size: 0.6rem; }
+        .alert-box .alert-head { color: #ff8c00; font-weight: bold; font-size: 0.55rem; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 3px; }
+
+        /* RADAR */
+        #radar-img { width: 100%; border: 1px solid var(--border); opacity: 0.8; filter: grayscale(0.3) brightness(0.9); display: block; }
+
+        /* TABS (right panel) */
+        .tab-bar { display: flex; border-bottom: 1px solid var(--border); }
+        .tab { flex: 1; font-size: 0.5rem; letter-spacing: 2px; padding: 8px 4px; text-align: center; cursor: pointer; color: var(--text-muted); text-transform: uppercase; border-bottom: 2px solid transparent; }
+        .tab.active { color: #fff; border-bottom-color: var(--purple); }
+
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        /* SCROLLBAR */
+        ::-webkit-scrollbar { width: 3px; }
+        ::-webkit-scrollbar-track { background: #000; }
+        ::-webkit-scrollbar-thumb { background: #222; }
+
+        /* LOADING */
+        .loading-pulse { color: #333; font-size: 0.55rem; letter-spacing: 2px; padding: 10px 0; text-align: center; animation: pulse 1.2s infinite; }
+        @keyframes pulse { 0%,100% { opacity: 0.3; } 50% { opacity: 1; } }
+
+        /* MAP LEGEND */
+        #map-legend { position: absolute; bottom: 20px; left: 20px; z-index: 1000; background: rgba(0,0,0,0.85); border: 1px solid #1a1a1a; padding: 8px 12px; font-size: 0.5rem; letter-spacing: 1px; }
+        .legend-row { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; color: #888; }
+        .legend-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
+        /* CLOCK */
+        #clock { font-size: 1.4rem; letter-spacing: 4px; color: #fff; font-weight: 700; }
+        #date-str { font-size: 0.5rem; color: #555; letter-spacing: 2px; margin-top: 2px; }
     </style>
 </head>
 <body>
-    <div class="sidebar">
-        <h1 style="font-size: 1rem; color: var(--accent); letter-spacing: 5px; margin: 0 0 5px 0;">NYC OS : SIGNAL</h1>
-        <div class="status-bar">UPLINK: <span id="uplink">STABLE</span> // NODE: <span>ACER-BRAIN</span></div>
-        
-        <div class="section-header" style="color:var(--cam)">Live Surveillance</div>
-        <div id="cam-grid">
-            </div>
 
-        <div class="section-header">Live 311 Intelligence</div>
-        <div id="feed-311"></div>
+<!-- LEFT SIDEBAR -->
+<div class="sidebar">
+    <div class="header">
+        <h1>NYC OS : SIGNAL v8</h1>
+        <div class="status-row">
+            UPLINK: <span class="status-dot" id="uplink-status">INIT</span>
+            &nbsp;|&nbsp; NODE: ACER-BRAIN
+            &nbsp;|&nbsp; <span id="last-sync">--:--:--</span>
+        </div>
     </div>
 
-    <div id="map"></div>
-
-    <div class="right-panel">
-        <div class="section-header" style="color:#bc61ff">Atmospheric Loop</div>
-        <img id="radar-img" src="" style="width:100%; border:1px solid #222; opacity:0.8; filter: grayscale(1);">
+    <!-- Clock -->
+    <div class="panel-block" style="text-align:center; padding: 14px;">
+        <div id="clock">--:--:--</div>
+        <div id="date-str">LOADING</div>
     </div>
+
+    <!-- Stat Strip -->
+    <div class="panel-block">
+        <div class="section-label">Live Counts</div>
+        <div class="stat-strip">
+            <div class="stat-box"><div class="stat-num" id="stat-311" style="color:var(--cyan)">—</div><div class="stat-lbl">311</div></div>
+            <div class="stat-box"><div class="stat-num" id="stat-nypd" style="color:var(--accent)">—</div><div class="stat-lbl">NYPD</div></div>
+            <div class="stat-box"><div class="stat-num" id="stat-aircraft" style="color:var(--purple)">—</div><div class="stat-lbl">ACFT</div></div>
+        </div>
+    </div>
+
+    <!-- Layer Toggles -->
+    <div class="panel-block">
+        <div class="section-label">Map Layers</div>
+        <div class="layer-grid">
+            <button class="layer-btn l-311 active" onclick="toggleLayer('311', this)">⬤ 311</button>
+            <button class="layer-btn l-nypd active" onclick="toggleLayer('nypd', this)">⬤ NYPD</button>
+            <button class="layer-btn l-permits active" onclick="toggleLayer('permits', this)">⬤ Permits</button>
+            <button class="layer-btn l-aircraft active" onclick="toggleLayer('aircraft', this)">⬤ Aircraft</button>
+            <button class="layer-btn l-mta active" onclick="toggleLayer('mta', this)">⬤ MTA</button>
+            <button class="layer-btn l-quake" onclick="toggleLayer('quake', this)">⬤ Seismic</button>
+        </div>
+    </div>
+
+    <!-- Cameras -->
+    <div class="panel-block">
+        <div class="section-label" style="color:var(--green)">Traffic Cams</div>
+        <div id="cam-grid"><div class="loading-pulse">ACQUIRING FEED...</div></div>
+    </div>
+</div>
+
+<!-- MAP -->
+<div id="map">
+    <div id="map-legend">
+        <div class="legend-row"><div class="legend-dot" style="background:var(--cyan)"></div>311 Complaint</div>
+        <div class="legend-row"><div class="legend-dot" style="background:var(--accent)"></div>NYPD Incident</div>
+        <div class="legend-row"><div class="legend-dot" style="background:var(--amber)"></div>Active Permit</div>
+        <div class="legend-row"><div class="legend-dot" style="background:var(--purple)"></div>Aircraft</div>
+        <div class="legend-row"><div class="legend-dot" style="background:var(--green)"></div>MTA Bus</div>
+    </div>
+</div>
+
+<!-- RIGHT PANEL -->
+<div class="right-panel">
+
+    <!-- Weather -->
+    <div class="panel-block">
+        <div class="section-label" style="color:var(--cyan)">Atmosphere / NYC</div>
+        <div class="weather-row">
+            <div class="weather-temp" id="wx-temp">—°</div>
+            <div class="weather-detail" id="wx-detail">ACQUIRING...</div>
+        </div>
+        <div style="margin-top:8px; font-size:0.6rem; color:#555;" id="wx-desc">—</div>
+    </div>
+
+    <!-- NOAA Alerts -->
+    <div class="panel-block" id="alerts-block" style="display:none;">
+        <div class="section-label" style="color:#ff8c00">Active Alerts</div>
+        <div id="alerts-feed"></div>
+    </div>
+
+    <!-- Radar -->
+    <div class="panel-block">
+        <div class="section-label" style="color:var(--purple)">Radar Loop</div>
+        <img id="radar-img" src="" alt="radar">
+    </div>
+
+    <!-- Tabbed feeds -->
+    <div class="tab-bar">
+        <div class="tab active" onclick="switchTab('311-tab', this)">311</div>
+        <div class="tab" onclick="switchTab('nypd-tab', this)">NYPD</div>
+        <div class="tab" onclick="switchTab('permit-tab', this)">Permits</div>
+        <div class="tab" onclick="switchTab('air-tab', this)">Aircraft</div>
+    </div>
+
+    <div class="panel-block">
+        <div id="311-tab" class="tab-content active"><div class="loading-pulse" id="311-loading">LOADING...</div><div id="feed-311"></div></div>
+        <div id="nypd-tab" class="tab-content"><div class="loading-pulse" id="nypd-loading">LOADING...</div><div id="feed-nypd"></div></div>
+        <div id="permit-tab" class="tab-content"><div class="loading-pulse" id="permit-loading">LOADING...</div><div id="feed-permits"></div></div>
+        <div id="air-tab" class="tab-content"><div class="loading-pulse" id="air-loading">LOADING...</div><div id="feed-aircraft"></div></div>
+    </div>
+
+</div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-    const map = L.map('map', { zoomControl: false, attributionControl: false }).setView([40.7128, -74.0060], 11);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-    const markerGroup = L.layerGroup().addTo(map);
+// ─── MAP INIT ───────────────────────────────────────────────────────────────
+const map = L.map('map', { zoomControl: false, attributionControl: false }).setView([40.7128, -74.0060], 11);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-    async function sync() {
-        try {
-            const res = await fetch('https://api.chartreuseexplosives.com/pulse');
-            const data = await res.json();
+const layers = {
+    '311':      L.layerGroup().addTo(map),
+    'nypd':     L.layerGroup().addTo(map),
+    'permits':  L.layerGroup().addTo(map),
+    'aircraft': L.layerGroup().addTo(map),
+    'mta':      L.layerGroup().addTo(map),
+    'quake':    L.layerGroup()
+};
 
-            // 1. Update Uplink & Radar
-            document.getElementById('uplink').innerText = "STABLE";
-            document.getElementById('uplink').style.color = "#00ff00";
-            document.getElementById('radar-img').src = data.radar + '?t=' + Date.now();
+const layerColors = {
+    '311': '#00f2ff', 'nypd': '#ff3e3e', 'permits': '#ffaa00',
+    'aircraft': '#bc61ff', 'mta': '#00ff00', 'quake': '#ff8c00'
+};
 
-            // 2. Update Traffic Cameras
-            const camGrid = document.getElementById('cam-grid');
-            camGrid.innerHTML = ''; // Clear old cameras
-            data.cameras.forEach(cam => {
-                const div = document.createElement('div');
-                div.className = 'cam-box';
-                div.innerHTML = `
-                    <img src="${cam.image_url}" onerror="this.src='https://via.placeholder.com/150?text=SIGNAL+LOST'">
-                    <div class="cam-label">${cam.location}</div>
-                `;
-                camGrid.appendChild(div);
-            });
+function toggleLayer(id, btn) {
+    btn.classList.toggle('active');
+    if (map.hasLayer(layers[id])) { map.removeLayer(layers[id]); }
+    else { map.addLayer(layers[id]); }
+}
 
-            // 3. Update 311 & Map Markers
-            markerGroup.clearLayers();
-            const feed311 = document.getElementById('feed-311');
-            feed311.innerHTML = '';
-            data.vitals_311.forEach(item => {
-                if(item.latitude) {
-                    L.circleMarker([item.latitude, item.longitude], { radius: 4, color: '#00f2ff', fillOpacity: 0.5 }).addTo(markerGroup);
-                    const card = document.createElement('div');
-                    card.className = 'card';
-                    card.innerHTML = `<b>${item.complaint_type}</b><br><span style="color:#666">${item.incident_address || 'Loc Unknown'}</span>`;
-                    feed311.appendChild(card);
-                }
-            });
+// ─── CLOCK ──────────────────────────────────────────────────────────────────
+function tickClock() {
+    const now = new Date();
+    document.getElementById('clock').textContent =
+        now.toLocaleTimeString('en-US', {hour12: false, hour:'2-digit', minute:'2-digit', second:'2-digit'});
+    document.getElementById('date-str').textContent =
+        now.toLocaleDateString('en-US', {weekday:'long', year:'numeric', month:'long', day:'numeric'}).toUpperCase();
+}
+setInterval(tickClock, 1000);
+tickClock();
 
-        } catch (e) {
-            console.error("Uplink Lost:", e);
-            document.getElementById('uplink').innerText = "OFFLINE";
-            document.getElementById('uplink').style.color = "red";
-        }
+// ─── TABS ────────────────────────────────────────────────────────────────────
+function switchTab(id, el) {
+    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+    el.classList.add('active');
+}
+
+// ─── HELPERS ─────────────────────────────────────────────────────────────────
+function addMarker(layerId, lat, lng, label, color, radius=4) {
+    if (!lat || !lng) return;
+    L.circleMarker([lat, lng], { radius, color, fillColor: color, fillOpacity: 0.5, weight: 1 })
+        .bindPopup(`<span style="font-size:0.7rem;color:#fff;background:#000;padding:4px">${label}</span>`)
+        .addTo(layers[layerId]);
+}
+
+function makeCard(cls, title, sub) {
+    const d = document.createElement('div');
+    d.className = `feed-card ${cls}`;
+    d.innerHTML = `<div class="title">${title}</div><div class="sub">${sub}</div>`;
+    return d;
+}
+
+function clearLoading(id) {
+    const el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+}
+
+// ─── 311 ─────────────────────────────────────────────────────────────────────
+async function load311() {
+    try {
+        const url = 'https://data.cityofnewyork.us/resource/erm2-nwe9.json?$limit=40&$order=created_date+DESC&$where=latitude+IS+NOT+NULL';
+        const data = await fetch(url).then(r => r.json());
+        layers['311'].clearLayers();
+        const feed = document.getElementById('feed-311');
+        feed.innerHTML = '';
+        let count = 0;
+        data.forEach(item => {
+            const lat = parseFloat(item.latitude), lng = parseFloat(item.longitude);
+            addMarker('311', lat, lng, item.complaint_type, '#00f2ff');
+            feed.appendChild(makeCard('', item.complaint_type || 'Unknown', item.incident_address || item.borough || '—'));
+            count++;
+        });
+        document.getElementById('stat-311').textContent = count;
+        clearLoading('311-loading');
+    } catch(e) { console.error('311 error:', e); }
+}
+
+// ─── NYPD ─────────────────────────────────────────────────────────────────────
+async function loadNYPD() {
+    try {
+        const url = 'https://data.cityofnewyork.us/resource/5uac-w243.json?$limit=30&$order=cmplnt_fr_dt+DESC&$where=latitude+IS+NOT+NULL';
+        const data = await fetch(url).then(r => r.json());
+        layers['nypd'].clearLayers();
+        const feed = document.getElementById('feed-nypd');
+        feed.innerHTML = '';
+        let count = 0;
+        data.forEach(item => {
+            const lat = parseFloat(item.latitude), lng = parseFloat(item.longitude);
+            addMarker('nypd', lat, lng, item.ofns_desc || 'Incident', '#ff3e3e', 5);
+            feed.appendChild(makeCard('nypd', item.ofns_desc || 'Offense', item.boro_nm || '—'));
+            count++;
+        });
+        document.getElementById('stat-nypd').textContent = count;
+        clearLoading('nypd-loading');
+    } catch(e) { console.error('NYPD error:', e); }
+}
+
+// ─── PERMITS ──────────────────────────────────────────────────────────────────
+async function loadPermits() {
+    try {
+        const url = 'https://data.cityofnewyork.us/resource/ipu4-2q9a.json?$limit=30&$order=issued_date+DESC&$where=latitude+IS+NOT+NULL';
+        const data = await fetch(url).then(r => r.json());
+        layers['permits'].clearLayers();
+        const feed = document.getElementById('feed-permits');
+        feed.innerHTML = '';
+        data.forEach(item => {
+            const lat = parseFloat(item.latitude), lng = parseFloat(item.longitude);
+            addMarker('permits', lat, lng, item.job_type || 'Permit', '#ffaa00', 4);
+            feed.appendChild(makeCard('permit', item.job_type || 'Permit', item.house + ' ' + (item.street_name || '') + ', ' + (item.borough || '')));
+        });
+        clearLoading('permit-loading');
+    } catch(e) { console.error('Permits error:', e); }
+}
+
+// ─── AIRCRAFT ─────────────────────────────────────────────────────────────────
+async function loadAircraft() {
+    try {
+        const url = 'https://opensky-network.org/api/states/all?lamin=40.4&lomin=-74.3&lamax=40.9&lomax=-73.7';
+        const data = await fetch(url).then(r => r.json());
+        layers['aircraft'].clearLayers();
+        const feed = document.getElementById('feed-aircraft');
+        feed.innerHTML = '';
+        if (!data.states) { clearLoading('air-loading'); return; }
+        let count = 0;
+        data.states.forEach(s => {
+            const callsign = (s[1] || 'UNKN').trim();
+            const lng = s[5], lat = s[6];
+            const alt = s[7] ? Math.round(s[7]) + 'm' : '—';
+            const vel = s[9] ? Math.round(s[9] * 1.94384) + 'kt' : '—';
+            if (!lat || !lng) return;
+            L.marker([lat, lng], {
+                icon: L.divIcon({
+                    html: `<div style="color:#bc61ff;font-size:10px;font-weight:bold;transform:rotate(${s[10]||0}deg)">✈</div>`,
+                    className: '', iconSize: [12, 12]
+                })
+            }).bindPopup(`<span style="font-size:0.7rem;color:#fff;background:#000;padding:4px">${callsign} · ${alt} · ${vel}</span>`)
+            .addTo(layers['aircraft']);
+            feed.appendChild(makeCard('aircraft', callsign || 'UNKNOWN', `Alt: ${alt} · Spd: ${vel}`));
+            count++;
+        });
+        document.getElementById('stat-aircraft').textContent = count;
+        clearLoading('air-loading');
+    } catch(e) { console.error('Aircraft error:', e); }
+}
+
+// ─── MTA BUS ──────────────────────────────────────────────────────────────────
+async function loadMTA() {
+    try {
+        const url = 'https://bustime.mta.info/api/siri/vehicle-monitoring.json?key=TEST&VehicleMonitoringDetailLevel=calls&LineRef=MTA+NYCT_M15';
+        const data = await fetch(url).then(r => r.json());
+        layers['mta'].clearLayers();
+        const vehicles = data?.Siri?.ServiceDelivery?.VehicleMonitoringDelivery?.[0]?.VehicleActivity || [];
+        vehicles.forEach(v => {
+            const loc = v.MonitoredVehicleJourney?.VehicleLocation;
+            if (!loc) return;
+            addMarker('mta', loc.Latitude, loc.Longitude, 'MTA Bus', '#00ff00', 5);
+        });
+    } catch(e) {  }
+}
+
+// ─── WEATHER ──────────────────────────────────────────────────────────────────
+async function loadWeather() {
+    try {
+        const points = await fetch('https://api.weather.gov/points/40.7128,-74.0060').then(r => r.json());
+        const forecastUrl = points.properties.forecastHourly;
+        const forecast = await fetch(forecastUrl).then(r => r.json());
+        const current = forecast.properties.periods[0];
+        document.getElementById('wx-temp').textContent = current.temperature + '°' + current.temperatureUnit;
+        document.getElementById('wx-detail').innerHTML =
+            `Wind: ${current.windSpeed} ${current.windDirection}<br>` +
+            `Humidity: ${current.relativeHumidity?.value || '—'}%<br>` +
+            `${current.isDaytime ? 'Day' : 'Night'}`;
+        document.getElementById('wx-desc').textContent = current.shortForecast;
+    } catch(e) { console.error('Weather error:', e); }
+}
+
+// ─── NOAA ALERTS ──────────────────────────────────────────────────────────────
+async function loadAlerts() {
+    try {
+        const data = await fetch('https://api.weather.gov/alerts/active?zone=NYZ072').then(r => r.json());
+        const alerts = data.features || [];
+        const block = document.getElementById('alerts-block');
+        const feed = document.getElementById('alerts-feed');
+        if (alerts.length === 0) { block.style.display = 'none'; return; }
+        block.style.display = 'block';
+        feed.innerHTML = '';
+        alerts.slice(0,3).forEach(a => {
+            const p = a.properties;
+            const div = document.createElement('div');
+            div.className = 'alert-box';
+            div.innerHTML = `<div class="alert-head">${p.event}</div><div style="color:#888;font-size:0.55rem">${p.headline?.substring(0,100) || '—'}</div>`;
+            feed.appendChild(div);
+        });
+    } catch(e) { }
+}
+
+// ─── RADAR ────────────────────────────────────────────────────────────────────
+function loadRadar() {
+    document.getElementById('radar-img').src =
+        'https://radar.weather.gov/ridge/standard/KLWX_loop.gif?t=' + Date.now();
+}
+
+// ─── CAMERAS (via existing API) ───────────────────────────────────────────────
+async function loadCameras() {
+    try {
+        const res = await fetch('https://api.chartreuseexplosives.com/pulse');
+        const data = await res.json();
+        const grid = document.getElementById('cam-grid');
+        grid.innerHTML = '';
+        (data.cameras || []).forEach(cam => {
+            const div = document.createElement('div');
+            div.className = 'cam-box';
+            div.innerHTML = `<img src="${cam.image_url}" onerror="this.src='https://via.placeholder.com/150?text=NO+SIGNAL'"><div class="cam-label">${cam.location}</div>`;
+            grid.appendChild(div);
+        });
+        document.getElementById('uplink-status').textContent = 'STABLE';
+        document.getElementById('uplink-status').style.color = '#00ff00';
+    } catch(e) {
+        document.getElementById('uplink-status').textContent = 'OFFLINE';
+        document.getElementById('uplink-status').style.color = '#ff3e3e';
+        document.getElementById('cam-grid').innerHTML = '<div style="font-size:0.55rem;color:#555;padding:10px">API OFFLINE — LOCAL MODE</div>';
     }
+    document.getElementById('last-sync').textContent = new Date().toLocaleTimeString('en-US', {hour12:false});
+}
 
-    sync();
-    setInterval(sync, 60000); // Refresh every 60 seconds
+// ─── FULL SYNC ────────────────────────────────────────────────────────────────
+async function syncAll() {
+    await Promise.allSettled([
+        loadCameras(),
+        load311(),
+        loadNYPD(),
+        loadPermits(),
+        loadAircraft(),
+        loadMTA(),
+        loadWeather(),
+        loadAlerts(),
+    ]);
+    loadRadar();
+}
+
+syncAll();
+setInterval(syncAll, 90000);
+setInterval(loadAircraft, 15000);
 </script>
 </body>
 </html>
