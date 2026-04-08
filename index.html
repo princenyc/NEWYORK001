@@ -43,7 +43,7 @@
         .layer-btn { font-size: 0.55rem; letter-spacing: 1px; padding: 5px 8px; border: 1px solid var(--border); background: #000; color: #444; cursor: pointer; text-align: left; text-transform: uppercase; transition: all 0.15s; }
         .layer-btn.active { border-color: currentColor; }
         .layer-btn.l-311 { color: var(--cyan); }
-        .layer-btn.l-nypd { color: var(--accent); }
+        .layer-btn.l-fdny { color: #ff6a00; }
         .layer-btn.l-permits { color: var(--amber); }
         .layer-btn.l-aircraft { color: var(--purple); }
         .layer-btn.l-mta { color: var(--green); }
@@ -58,7 +58,7 @@
 
         /* FEED CARDS */
         .feed-card { border: 1px solid var(--border); padding: 7px 9px; margin-bottom: 5px; font-size: 0.6rem; border-left: 2px solid var(--cyan); }
-        .feed-card.nypd { border-left-color: var(--accent); }
+        .feed-card.fdny { border-left-color: #ff6a00; }
         .feed-card.permit { border-left-color: var(--amber); }
         .feed-card.aircraft { border-left-color: var(--purple); }
         .feed-card.quake { border-left-color: #ff8c00; }
@@ -104,6 +104,15 @@
         .pop-row span:last-child { color: #ccc; text-align: right; }
         .pop-accent { height: 2px; width: 100%; margin-bottom: 8px; }
 
+        /* SCANNER */
+        .scanner-wrap { border: 1px solid var(--border); background: #000; padding: 10px; }
+        .scanner-status { display: flex; align-items: center; gap: 6px; font-size: 0.5rem; letter-spacing: 2px; color: var(--text-muted); margin-bottom: 8px; }
+        .scanner-dot { width: 6px; height: 6px; border-radius: 50%; background: #333; flex-shrink: 0; }
+        .scanner-dot.live { background: var(--accent); animation: pulse 1s infinite; }
+        .scanner-select { width: 100%; background: #000; color: #888; border: 1px solid #222; padding: 5px 7px; font-size: 0.55rem; font-family: monospace; letter-spacing: 1px; margin-bottom: 8px; }
+        .scanner-select option { background: #000; }
+        audio { width: 100%; height: 28px; filter: invert(1) hue-rotate(180deg); display: block; }
+
         /* SCROLLBAR */
         ::-webkit-scrollbar { width: 3px; }
         ::-webkit-scrollbar-track { background: #000; }
@@ -147,7 +156,7 @@
         <div class="section-label">Live Counts</div>
         <div class="stat-strip">
             <div class="stat-box"><div class="stat-num" id="stat-311" style="color:var(--cyan)">—</div><div class="stat-lbl">311</div></div>
-            <div class="stat-box"><div class="stat-num" id="stat-nypd" style="color:var(--accent)">—</div><div class="stat-lbl">NYPD</div></div>
+            <div class="stat-box"><div class="stat-num" id="stat-fdny" style="color:#ff6a00">—</div><div class="stat-lbl">FDNY</div></div>
             <div class="stat-box"><div class="stat-num" id="stat-aircraft" style="color:var(--purple)">—</div><div class="stat-lbl">ACFT</div></div>
         </div>
     </div>
@@ -157,7 +166,7 @@
         <div class="section-label">Map Layers</div>
         <div class="layer-grid">
             <button class="layer-btn l-311 active" onclick="toggleLayer('311', this)">⬤ 311</button>
-            <button class="layer-btn l-nypd active" onclick="toggleLayer('nypd', this)">⬤ NYPD</button>
+            <button class="layer-btn l-fdny active" onclick="toggleLayer('fdny', this)">⬤ FDNY/EMS</button>
             <button class="layer-btn l-permits active" onclick="toggleLayer('permits', this)">⬤ Permits</button>
             <button class="layer-btn l-aircraft active" onclick="toggleLayer('aircraft', this)">⬤ Aircraft</button>
             <button class="layer-btn l-mta active" onclick="toggleLayer('mta', this)">⬤ MTA</button>
@@ -176,7 +185,7 @@
 <div id="map">
     <div id="map-legend">
         <div class="legend-row"><div class="legend-dot" style="background:var(--cyan)"></div>311 Complaint</div>
-        <div class="legend-row"><div class="legend-dot" style="background:var(--accent)"></div>NYPD Incident</div>
+        <div class="legend-row"><div class="legend-dot" style="background:#ff6a00"></div>FDNY/EMS</div>
         <div class="legend-row"><div class="legend-dot" style="background:var(--amber)"></div>Active Permit</div>
         <div class="legend-row"><div class="legend-dot" style="background:var(--purple)"></div>Aircraft</div>
         <div class="legend-row"><div class="legend-dot" style="background:var(--green)"></div>MTA Bus</div>
@@ -185,6 +194,31 @@
 
 <!-- RIGHT PANEL -->
 <div class="right-panel">
+
+    <!-- Scanner -->
+    <div class="panel-block">
+        <div class="section-label" style="color:var(--accent)">Broadcastify Scanner</div>
+        <div class="scanner-wrap">
+            <div class="scanner-status">
+                <div class="scanner-dot live" id="scanner-dot"></div>
+                <span id="scanner-label">NYPD CITYWIDE — MANHATTAN</span>
+            </div>
+            <select class="scanner-select" onchange="switchFeed(this.value, this.options[this.selectedIndex].text)">
+                <option value="https://broadcastify.cdnstream1.com/23529">NYPD Citywide — Manhattan</option>
+                <option value="https://broadcastify.cdnstream1.com/23530">NYPD — Brooklyn North</option>
+                <option value="https://broadcastify.cdnstream1.com/23531">NYPD — Brooklyn South</option>
+                <option value="https://broadcastify.cdnstream1.com/23532">NYPD — Bronx</option>
+                <option value="https://broadcastify.cdnstream1.com/23533">NYPD — Queens North</option>
+                <option value="https://broadcastify.cdnstream1.com/23534">NYPD — Queens South</option>
+                <option value="https://broadcastify.cdnstream1.com/23535">NYPD — Staten Island</option>
+                <option value="https://broadcastify.cdnstream1.com/6189">FDNY — Fire Dispatch</option>
+                <option value="https://broadcastify.cdnstream1.com/6190">FDNY — EMS Dispatch</option>
+            </select>
+            <audio id="scanner-audio" controls autoplay>
+                <source id="scanner-src" src="https://broadcastify.cdnstream1.com/23529" type="audio/mpeg">
+            </audio>
+        </div>
+    </div>
 
     <!-- Weather -->
     <div class="panel-block">
@@ -211,14 +245,14 @@
     <!-- Tabbed feeds -->
     <div class="tab-bar">
         <div class="tab active" onclick="switchTab('311-tab', this)">311</div>
-        <div class="tab" onclick="switchTab('nypd-tab', this)">NYPD</div>
+        <div class="tab" onclick="switchTab('fdny-tab', this)">FDNY</div>
         <div class="tab" onclick="switchTab('permit-tab', this)">Permits</div>
         <div class="tab" onclick="switchTab('air-tab', this)">Aircraft</div>
     </div>
 
     <div class="panel-block">
         <div id="311-tab" class="tab-content active"><div class="loading-pulse" id="311-loading">LOADING...</div><div id="feed-311"></div></div>
-        <div id="nypd-tab" class="tab-content"><div class="loading-pulse" id="nypd-loading">LOADING...</div><div id="feed-nypd"></div></div>
+        <div id="fdny-tab" class="tab-content"><div class="loading-pulse" id="fdny-loading">LOADING...</div><div id="feed-fdny"></div></div>
         <div id="permit-tab" class="tab-content"><div class="loading-pulse" id="permit-loading">LOADING...</div><div id="feed-permits"></div></div>
         <div id="air-tab" class="tab-content"><div class="loading-pulse" id="air-loading">LOADING...</div><div id="feed-aircraft"></div></div>
     </div>
@@ -233,7 +267,7 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
 const layers = {
     '311':      L.layerGroup().addTo(map),
-    'nypd':     L.layerGroup().addTo(map),
+    'fdny':     L.layerGroup().addTo(map),
     'permits':  L.layerGroup().addTo(map),
     'aircraft': L.layerGroup().addTo(map),
     'mta':      L.layerGroup().addTo(map),
@@ -241,7 +275,7 @@ const layers = {
 };
 
 const layerColors = {
-    '311': '#00f2ff', 'nypd': '#ff3e3e', 'permits': '#ffaa00',
+    '311': '#00f2ff', 'fdny': '#ff6a00', 'permits': '#ffaa00',
     'aircraft': '#bc61ff', 'mta': '#00ff00', 'quake': '#ff8c00'
 };
 
@@ -332,33 +366,62 @@ async function load311() {
     } catch(e) { console.error('311 error:', e); }
 }
 
-// ─── NYPD ─────────────────────────────────────────────────────────────────────
-async function loadNYPD() {
+// ─── FDNY / EMS ───────────────────────────────────────────────────────────────
+async function loadFDNY() {
     try {
-        const url = 'https://data.cityofnewyork.us/resource/5uac-w243.json?$limit=30&$order=cmplnt_fr_dt+DESC&$where=latitude+IS+NOT+NULL';
+        // 311 filtered to FDNY agency — genuine dispatch records, updated continuously
+        const url = 'https://data.cityofnewyork.us/resource/erm2-nwe9.json?$limit=40&$order=created_date+DESC&$where=latitude+IS+NOT+NULL+AND+agency=%27FDNY%27';
         const data = await fetch(url).then(r => r.json());
-        layers['nypd'].clearLayers();
-        const feed = document.getElementById('feed-nypd');
+        layers['fdny'].clearLayers();
+        const feed = document.getElementById('feed-fdny');
         feed.innerHTML = '';
         let count = 0;
         data.forEach(item => {
             const lat = parseFloat(item.latitude), lng = parseFloat(item.longitude);
-            const dt = item.cmplnt_fr_dt ? item.cmplnt_fr_dt.substring(0,10) : '—';
-            const p = popup('#ff3e3e', 'NYPD Complaint', item.ofns_desc || 'Incident', [
-                ['Borough', item.boro_nm],
-                ['Premises', item.prem_typ_desc],
-                ['Law Cat.', item.law_cat_cd],
-                ['Status', item.crm_atpt_cptd_cd],
-                ['Date', dt],
+            const created = item.created_date ? item.created_date.substring(0,16).replace('T',' ') : '—';
+            const p = popup('#ff6a00', 'FDNY / EMS', item.complaint_type || 'Incident', [
+                ['Address',    item.incident_address],
+                ['Borough',    item.borough],
+                ['Descriptor', item.descriptor],
+                ['Status',     item.status],
+                ['Reported',   created],
+                ['Resolution', item.resolution_description],
             ]);
-            addMarker('nypd', lat, lng, '#ff3e3e', 5, p);
-            feed.appendChild(makeCard('nypd', item.ofns_desc || 'Offense', item.boro_nm || '—'));
+            addMarker('fdny', lat, lng, '#ff6a00', 6, p);
+            feed.appendChild(makeCard('fdny', item.complaint_type || 'Incident', item.incident_address || item.borough || '—'));
             count++;
         });
-        document.getElementById('stat-nypd').textContent = count;
-        clearLoading('nypd-loading');
-    } catch(e) { console.error('NYPD error:', e); }
+        document.getElementById('stat-fdny').textContent = count;
+        clearLoading('fdny-loading');
+    } catch(e) { console.error('FDNY error:', e); }
 }
+
+// ─── SCANNER ──────────────────────────────────────────────────────────────────
+function switchFeed(src, label) {
+    const audio = document.getElementById('scanner-audio');
+    const srcEl = document.getElementById('scanner-src');
+    const dot = document.getElementById('scanner-dot');
+    const lbl = document.getElementById('scanner-label');
+    dot.classList.remove('live');
+    srcEl.src = src;
+    audio.load();
+    audio.play().then(() => {
+        dot.classList.add('live');
+        lbl.textContent = label.toUpperCase();
+    }).catch(() => {
+        dot.classList.remove('live');
+        lbl.textContent = 'STREAM BLOCKED — CLICK PLAY';
+    });
+}
+
+// Init scanner dot state based on audio events
+document.addEventListener('DOMContentLoaded', () => {
+    const audio = document.getElementById('scanner-audio');
+    const dot = document.getElementById('scanner-dot');
+    audio.addEventListener('playing', () => dot.classList.add('live'));
+    audio.addEventListener('pause',   () => dot.classList.remove('live'));
+    audio.addEventListener('error',   () => dot.classList.remove('live'));
+});
 
 // ─── PERMITS ──────────────────────────────────────────────────────────────────
 async function loadPermits() {
@@ -527,7 +590,7 @@ async function syncAll() {
     await Promise.allSettled([
         loadCameras(),
         load311(),
-        loadNYPD(),
+        loadFDNY(),
         loadPermits(),
         loadAircraft(),
         loadMTA(),
