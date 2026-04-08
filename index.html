@@ -21,7 +21,7 @@
         body { margin: 0; background: var(--bg); color: #fff; font-family: 'Segoe UI', monospace; height: 100vh; display: flex; overflow: hidden; }
 
         #map { flex-grow: 1; background: #000; position: relative; }
-        .leaflet-tile { filter: invert(100%) hue-rotate(180deg) brightness(0.4) contrast(1.6) !important; }
+        .leaflet-tile { filter: invert(100%) hue-rotate(180deg) brightness(0.75) contrast(1.3) saturate(0.8) !important; }
 
         /* SIDEBARS */
         .sidebar { width: 300px; background: var(--panel); border-right: 1px solid var(--border); overflow-y: auto; display: flex; flex-direction: column; z-index: 10; }
@@ -90,6 +90,19 @@
 
         .tab-content { display: none; }
         .tab-content.active { display: block; }
+
+        /* LEAFLET POPUP OVERRIDE */
+        .leaflet-popup-content-wrapper { background: #0a0a0a; border: 1px solid #333; border-radius: 2px; box-shadow: none; padding: 0; }
+        .leaflet-popup-content { margin: 0; font-family: 'Segoe UI', monospace; }
+        .leaflet-popup-tip-container { display: none; }
+        .leaflet-popup-close-button { color: #555 !important; top: 6px !important; right: 8px !important; font-size: 14px !important; }
+        .pop-inner { padding: 10px 14px; min-width: 180px; }
+        .pop-type { font-size: 0.45rem; letter-spacing: 2px; text-transform: uppercase; color: #555; margin-bottom: 3px; }
+        .pop-title { font-size: 0.75rem; font-weight: bold; color: #fff; margin-bottom: 6px; line-height: 1.3; }
+        .pop-row { display: flex; justify-content: space-between; gap: 12px; font-size: 0.6rem; margin-bottom: 2px; }
+        .pop-row span:first-child { color: #555; }
+        .pop-row span:last-child { color: #ccc; text-align: right; }
+        .pop-accent { height: 2px; width: 100%; margin-bottom: 8px; }
 
         /* SCROLLBAR */
         ::-webkit-scrollbar { width: 3px; }
@@ -258,11 +271,24 @@ function switchTab(id, el) {
 }
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
-function addMarker(layerId, lat, lng, label, color, radius=4) {
+function addMarker(layerId, lat, lng, color, radius, popupHTML) {
     if (!lat || !lng) return;
-    L.circleMarker([lat, lng], { radius, color, fillColor: color, fillOpacity: 0.5, weight: 1 })
-        .bindPopup(`<span style="font-size:0.7rem;color:#fff;background:#000;padding:4px">${label}</span>`)
-        .addTo(layers[layerId]);
+    const marker = L.circleMarker([lat, lng], {
+        radius, color, fillColor: color, fillOpacity: 0.65, weight: 1.5
+    });
+    if (popupHTML) {
+        marker.bindPopup(popupHTML, { maxWidth: 280, className: 'signal-popup' });
+        marker.on('mouseover', function() { this.openPopup(); });
+    }
+    marker.addTo(layers[layerId]);
+    return marker;
+}
+
+function popup(accentColor, type, title, rows) {
+    const rowsHTML = rows.map(([k,v]) =>
+        v ? `<div class="pop-row"><span>${k}</span><span>${v}</span></div>` : ''
+    ).join('');
+    return `<div class="pop-inner"><div class="pop-accent" style="background:${accentColor}"></div><div class="pop-type">${type}</div><div class="pop-title">${title}</div>${rowsHTML}</div>`;
 }
 
 function makeCard(cls, title, sub) {
@@ -288,7 +314,16 @@ async function load311() {
         let count = 0;
         data.forEach(item => {
             const lat = parseFloat(item.latitude), lng = parseFloat(item.longitude);
-            addMarker('311', lat, lng, item.complaint_type, '#00f2ff');
+            const created = item.created_date ? item.created_date.substring(0,10) : '—';
+            const p = popup('#00f2ff', '311 Complaint', item.complaint_type || 'Unknown', [
+                ['Address', item.incident_address],
+                ['Borough', item.borough],
+                ['Descriptor', item.descriptor],
+                ['Status', item.status],
+                ['Opened', created],
+                ['Agency', item.agency_name],
+            ]);
+            addMarker('311', lat, lng, '#00f2ff', 5, p);
             feed.appendChild(makeCard('', item.complaint_type || 'Unknown', item.incident_address || item.borough || '—'));
             count++;
         });
@@ -308,7 +343,15 @@ async function loadNYPD() {
         let count = 0;
         data.forEach(item => {
             const lat = parseFloat(item.latitude), lng = parseFloat(item.longitude);
-            addMarker('nypd', lat, lng, item.ofns_desc || 'Incident', '#ff3e3e', 5);
+            const dt = item.cmplnt_fr_dt ? item.cmplnt_fr_dt.substring(0,10) : '—';
+            const p = popup('#ff3e3e', 'NYPD Complaint', item.ofns_desc || 'Incident', [
+                ['Borough', item.boro_nm],
+                ['Premises', item.prem_typ_desc],
+                ['Law Cat.', item.law_cat_cd],
+                ['Status', item.crm_atpt_cptd_cd],
+                ['Date', dt],
+            ]);
+            addMarker('nypd', lat, lng, '#ff3e3e', 5, p);
             feed.appendChild(makeCard('nypd', item.ofns_desc || 'Offense', item.boro_nm || '—'));
             count++;
         });
@@ -327,8 +370,19 @@ async function loadPermits() {
         feed.innerHTML = '';
         data.forEach(item => {
             const lat = parseFloat(item.latitude), lng = parseFloat(item.longitude);
-            addMarker('permits', lat, lng, item.job_type || 'Permit', '#ffaa00', 4);
-            feed.appendChild(makeCard('permit', item.job_type || 'Permit', item.house + ' ' + (item.street_name || '') + ', ' + (item.borough || '')));
+            const addr = (item.house || '') + ' ' + (item.street_name || '');
+            const issued = item.issued_date ? item.issued_date.substring(0,10) : '—';
+            const expires = item.expiration_date ? item.expiration_date.substring(0,10) : '—';
+            const p = popup('#ffaa00', 'DOB Permit', item.job_type || 'Permit', [
+                ['Address', addr.trim() || '—'],
+                ['Borough', item.borough],
+                ['Work Type', item.work_type],
+                ['Owner', item.owner_s_last_name],
+                ['Issued', issued],
+                ['Expires', expires],
+            ]);
+            addMarker('permits', lat, lng, '#ffaa00', 4, p);
+            feed.appendChild(makeCard('permit', item.job_type || 'Permit', addr.trim() + ', ' + (item.borough || '')));
         });
         clearLoading('permit-loading');
     } catch(e) { console.error('Permits error:', e); }
@@ -347,17 +401,30 @@ async function loadAircraft() {
         data.states.forEach(s => {
             const callsign = (s[1] || 'UNKN').trim();
             const lng = s[5], lat = s[6];
-            const alt = s[7] ? Math.round(s[7]) + 'm' : '—';
-            const vel = s[9] ? Math.round(s[9] * 1.94384) + 'kt' : '—';
+            const altM = s[7];
+            const alt = altM ? Math.round(altM) + 'm (' + Math.round(altM * 3.28084) + 'ft)' : '—';
+            const vel = s[9] ? Math.round(s[9] * 1.94384) + ' kt' : '—';
+            const hdg = s[10] ? Math.round(s[10]) + '°' : '—';
+            const origin = s[2] || '—';
             if (!lat || !lng) return;
-            L.marker([lat, lng], {
+            const p = popup('#bc61ff', 'Aircraft', callsign || 'UNKNOWN', [
+                ['Altitude', alt],
+                ['Speed', vel],
+                ['Heading', hdg],
+                ['Origin', origin],
+                ['ICAO24', s[0]],
+                ['On Ground', s[8] ? 'Yes' : 'No'],
+            ]);
+            const marker = L.marker([lat, lng], {
                 icon: L.divIcon({
-                    html: `<div style="color:#bc61ff;font-size:10px;font-weight:bold;transform:rotate(${s[10]||0}deg)">✈</div>`,
-                    className: '', iconSize: [12, 12]
+                    html: `<div style="color:#bc61ff;font-size:11px;transform:rotate(${s[10]||0}deg);line-height:1">✈</div>`,
+                    className: '', iconSize: [14, 14]
                 })
-            }).bindPopup(`<span style="font-size:0.7rem;color:#fff;background:#000;padding:4px">${callsign} · ${alt} · ${vel}</span>`)
-            .addTo(layers['aircraft']);
-            feed.appendChild(makeCard('aircraft', callsign || 'UNKNOWN', `Alt: ${alt} · Spd: ${vel}`));
+            });
+            marker.bindPopup(p, { maxWidth: 280, className: 'signal-popup' });
+            marker.on('mouseover', function() { this.openPopup(); });
+            marker.addTo(layers['aircraft']);
+            feed.appendChild(makeCard('aircraft', callsign || 'UNKNOWN', `Alt: ${altM ? Math.round(altM*3.28084)+'ft' : '—'} · Spd: ${vel}`));
             count++;
         });
         document.getElementById('stat-aircraft').textContent = count;
@@ -365,19 +432,29 @@ async function loadAircraft() {
     } catch(e) { console.error('Aircraft error:', e); }
 }
 
-// ─── MTA BUS ──────────────────────────────────────────────────────────────────
 async function loadMTA() {
     try {
-        const url = 'https://bustime.mta.info/api/siri/vehicle-monitoring.json?key=TEST&VehicleMonitoringDetailLevel=calls&LineRef=MTA+NYCT_M15';
+        const key = 'f8d5190e-a4a7-486e-a5ee-a3d67e98513c';
+        const url = `https://bustime.mta.info/api/siri/vehicle-monitoring.json?key=${key}&VehicleMonitoringDetailLevel=calls&LineRef=MTA+NYCT_M15`;
         const data = await fetch(url).then(r => r.json());
         layers['mta'].clearLayers();
         const vehicles = data?.Siri?.ServiceDelivery?.VehicleMonitoringDelivery?.[0]?.VehicleActivity || [];
         vehicles.forEach(v => {
-            const loc = v.MonitoredVehicleJourney?.VehicleLocation;
+            const mvj = v.MonitoredVehicleJourney;
+            const loc = mvj?.VehicleLocation;
             if (!loc) return;
-            addMarker('mta', loc.Latitude, loc.Longitude, 'MTA Bus', '#00ff00', 5);
+            const line = mvj.PublishedLineName || 'MTA Bus';
+            const dest = mvj.DestinationName || '—';
+            const vref = mvj.VehicleRef || '—';
+            const bearing = mvj.Bearing ? Math.round(mvj.Bearing) + '°' : '—';
+            const p = popup('#00ff00', 'MTA Bus', `${line} → ${dest}`, [
+                ['Vehicle', vref],
+                ['Bearing', bearing],
+                ['Origin', mvj.OriginName || '—'],
+            ]);
+            addMarker('mta', loc.Latitude, loc.Longitude, '#00ff00', 6, p);
         });
-    } catch(e) {  }
+    } catch(e) { console.error('MTA error:', e); }
 }
 
 // ─── WEATHER ──────────────────────────────────────────────────────────────────
